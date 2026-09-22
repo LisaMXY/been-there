@@ -1,0 +1,31 @@
+# Example only. Copy this to travels.txt, replace it with your own, then:
+#
+#   cd tools && npm install && npm run travels
+#
+# One trip per line:
+#
+#   YYYY[-MM] | Country | City, City, City | status
+#
+# The month is optional and only the year is kept. A city in (brackets) becomes
+# a note on the pin. Blank cities are fine - the country still counts.
+#
+# Status is optional and defaults to "visited". Use lived, stopover or wishlist
+# on the line that earns it; a country takes the strongest status any of its
+# lines gives it, and the cities on that line take it too.
+#
+# Names resolve against the bundled city list. Anything it cannot find is
+# reported by name rather than dropped, so you can add coordinates for it in
+# EXTRA_PLACES at the top of build-travels.mjs.
+#
+# travels.txt and the data/travels.js it builds are both gitignored.
+
+2011-08 | France        | Paris, Lyon
+2013-03 | Italy         | Rome, Naples
+2015-06 | Canada        | Montreal, Toronto       | lived
+2015-09 | United States | New York, Boston
+2018-02 | Qatar         |                         | stopover
+2018-02 | Kenya         | Nairobi, Mombasa
+2019-07 | Ireland       | Dublin, Cork
+2021-05 | Portugal      | Lisbon, Porto
+2024-10 | Mexico        | Mexico City, Oaxaca
+2027-01 | Chile         |                         | wishlist

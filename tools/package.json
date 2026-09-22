@@ -1,0 +1,25 @@
+{
+  "name": "travel-map-tools",
+  "private": true,
+  "type": "module",
+  "description": "Build-time only. The app itself has no dependencies.",
+  "scripts": {
+    "data": "node build-data.mjs",
+    "vendor": "node build-vendor.mjs",
+    "check": "node check-data.mjs",
+    "travels": "node build-travels.mjs",
+    "test": "node test.mjs",
+    "icons": "node build-icons.mjs"
+  },
+  "dependencies": {
+    "all-the-cities": "^3.1.0",
+    "d3-geo": "^3.1.0",
+    "esbuild": "^0.25.0",
+    "topojson-client": "^3.1.0",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}

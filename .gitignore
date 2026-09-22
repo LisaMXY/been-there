@@ -1,0 +1,10 @@
+# Build-time only; the app ships with its data already generated.
+tools/node_modules/
+tools/.cache/
+tools/package-lock.json
+
+.DS_Store
+
+# A personal travel history stays out of this repository.
+data/travels.js
+tools/travels.txt

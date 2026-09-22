@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Been There">
+  <rect width="512" height="512" rx="112" fill="#2a78d6"/>
+  <g fill="none" stroke="#fcfcfb" stroke-width="15" stroke-linecap="round">
+    <circle cx="256" cy="256" r="150"/>
+    <path d="M106 256h300"/>
+    <path d="M256 106c46 46 46 254 0 300"/>
+    <path d="M256 106c-46 46-46 254 0 300"/>
+    <path d="M146 166c62 34 178 34 240 0"/>
+    <path d="M146 346c62-34 178-34 240 0"/>
+  </g>
+  <circle cx="330" cy="196" r="30" fill="#e34948" stroke="#fcfcfb" stroke-width="15"/>
+</svg>
