@@ -367,6 +367,65 @@ await check('the service worker registers and serves the page offline', async ()
   if (out[0] !== 1) throw new Error('offline reload lost the data: ' + out[0]);
 });
 
+console.log('\non a phone');
+await check('the map gets the whole stage and the panel becomes a sheet', async () => {
+  const ctx = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+  const p5 = await ctx.newPage();
+  await p5.goto(base + '/index.html', {waitUntil: 'networkidle'});
+  await p5.waitForTimeout(2400);
+  await p5.evaluate((f) => window.Store.fromJSON({data: f}, 'replace'), FIXTURE);
+  await p5.waitForTimeout(500);
+
+  const share = await p5.evaluate(() => {
+    const stage = document.querySelector('.stage').getBoundingClientRect();
+    const map = document.querySelector('.map-wrap').getBoundingClientRect();
+    return map.height / stage.height;
+  });
+  if (share < 0.95) throw new Error('map only gets ' + Math.round(share * 100) + '% of the stage');
+  if (await p5.evaluate(() => document.getElementById('panel').classList.contains('open'))) {
+    throw new Error('sheet is up with nothing selected');
+  }
+
+  await p5.evaluate(() => window.BeenThere.select({kind: 'country', id: 'JPN'}, true));
+  await p5.waitForTimeout(700);
+
+  // The whole point: what you selected has to be visible, not behind the sheet.
+  const view = await p5.evaluate(() => {
+    const m = window.BeenThere.map;
+    const sheet = document.getElementById('panel').getBoundingClientRect();
+    const stage = document.querySelector('.map-wrap').getBoundingClientRect();
+    const pt = m.projection([138, 37]);
+    const y = stage.top + pt[1] * m.k + m.ty;
+    const ctl = document.querySelector('.map-controls').getBoundingClientRect();
+    return {
+      open: document.getElementById('panel').classList.contains('open'),
+      inset: Math.round(m.inset),
+      inBand: y > stage.top + 10 && y < sheet.top - 10,
+      controlsClear: ctl.bottom < sheet.top,
+      legendHidden: getComputedStyle(document.getElementById('legend')).opacity === '0',
+    };
+  });
+  if (!view.open) throw new Error('sheet did not come up');
+  if (!view.inset) throw new Error('map was not told about the sheet');
+  if (!view.inBand) throw new Error('the selected country is hidden behind the sheet');
+  if (!view.controlsClear) throw new Error('zoom and pin are buried under the sheet');
+  if (!view.legendHidden) throw new Error('legend still covering the map');
+
+  await p5.click('.sheet-grab');
+  await p5.waitForTimeout(500);
+  if (await p5.evaluate(() => document.getElementById('panel').classList.contains('open'))) {
+    throw new Error('the handle did not close it');
+  }
+  if (await p5.evaluate(() => window.BeenThere.map.inset)) throw new Error('inset not released');
+
+  await p5.click('#pin-drop');
+  await p5.waitForTimeout(400);
+  if (!(await p5.evaluate(() => document.getElementById('map').classList.contains('placing')))) {
+    throw new Error('the pin button did not arm');
+  }
+  await ctx.close();
+});
+
 console.log('\nawkward browsers');
 await check('a browser that blocks storage still works, and says so', async () => {
   const ctx = await browser.newContext({viewport: {width: 1280, height: 820}});

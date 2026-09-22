@@ -70,7 +70,8 @@ count. The table is also the colour-free way to read everything the charts say.
 ## Getting your places in
 
 - **Click the map.** Countries at a glance; zoom into one and its regions appear
-  once you have coloured anything inside it.
+  once you have coloured anything inside it. On a phone the map fills the screen
+  and the details slide up over it; the handle at the top pushes them back down.
 - **The checklist** runs every country on Earth as a grid by continent. Click
   cycles visited → lived → stopover → want to go → blank. This is much faster
   than hunting for Andorra on a world map.
@@ -154,7 +155,7 @@ npx playwright install chromium
 npm test
 ```
 
-Twenty-seven checks against the real page in a real browser: a fresh browser
+Twenty-nine checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions
@@ -162,7 +163,8 @@ when you zoom, the UK lists as four home nations, a city lights up its region an
 country, the summary renders, a browser with storage switched off still works and
 says so, the backup nudge appears and clears on the right days, the manifest is
 installable, the service worker serves the page with the network switched off,
-and nothing overflows sideways on a phone. Every one of them is there because
+the phone layout gives the map the whole screen and keeps what you selected
+clear of the sheet, and nothing overflows sideways. Every one of them is there because
 that thing broke at least once.
 
 Set `CHROME_PATH` to use a Chromium already on the machine instead of the one

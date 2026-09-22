@@ -130,6 +130,10 @@
     this.k = 1;
     this.tx = 0;
     this.ty = 0;
+    // How much of the bottom of the canvas is covered by something else - the
+    // sheet on a phone. The map is still drawn full size; it just aims itself
+    // at the part you can actually see.
+    this.inset = 0;
     this.projection = topo.geoEqualEarth();
     this.path = topo.geoPath(this.projection, this.ctx);
     this.graticule = topo.geoGraticule().step([20, 20]);
@@ -168,6 +172,22 @@
     this.draw();
   };
 
+  MapView.prototype.visibleCenterY = function () {
+    return (this.height - this.inset) / 2;
+  };
+
+  /* Slide the view up by half of whatever is covering the bottom, so the thing
+     you just selected is not hidden behind the panel describing it. */
+  MapView.prototype.setInset = function (px) {
+    px = Math.max(0, Math.min(this.height * 0.8, px || 0));
+    if (Math.abs(px - this.inset) < 1) return;
+    var delta = (px - this.inset) / 2;
+    this.inset = px;
+    this.ty -= delta;
+    this.clampPan();
+    this.draw();
+  };
+
   MapView.prototype.clampPan = function () {
     // Let the map be dragged around but never completely off the stage.
     var slack = 0.45;
@@ -199,7 +219,9 @@
   };
 
   MapView.prototype.reset = function () {
-    this.k = 1; this.tx = 0; this.ty = 0;
+    this.k = 1;
+    this.tx = 0;
+    this.ty = -this.inset / 2;
     this.draw();
   };
 
@@ -216,10 +238,10 @@
     var y1 = Math.max(a[1], c[1], a2[1], c2[1]);
     var w = Math.max(x1 - x0, 6);
     var h = Math.max(y1 - y0, 6);
-    var k = Math.min(this.width / (w * 1.6), this.height / (h * 1.6));
+    var k = Math.min(this.width / (w * 1.6), Math.max(80, this.height - this.inset) / (h * 1.6));
     this.k = Math.min(maxK || 26, Math.max(1, k));
     this.tx = this.width / 2 - ((x0 + x1) / 2) * this.k;
-    this.ty = this.height / 2 - ((y0 + y1) / 2) * this.k;
+    this.ty = this.visibleCenterY() - ((y0 + y1) / 2) * this.k;
     this.clampPan();
     this.draw();
   };

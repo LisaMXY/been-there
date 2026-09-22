@@ -13,7 +13,8 @@
     menu: $('menu'), menuBtn: $('menu-btn'), file: $('file'), sheet: $('sheet'),
     sheetTitle: $('sheet-title'), sheetBody: $('sheet-body'), sheetActions: $('sheet-actions'),
     listToggle: $('list-toggle'), sumToggle: $('sum-toggle'),
-    summary: $('summary'), storageNote: $('storage-note')
+    summary: $('summary'), storageNote: $('storage-note'),
+    stage: document.querySelector('.stage')
   };
 
   var map = new Atlas.MapView(el.canvas);
@@ -156,11 +157,33 @@
 
   function renderPanel() {
     el.panel.textContent = '';
-    if (!selection) { el.panel.appendChild(emptyState()); return; }
-    if (selection.kind === 'country') el.panel.appendChild(countryPanel(selection.id));
+    // On a phone the panel slides up over the map, so it carries its own way
+    // out. On a wide screen it is a column and the CSS hides both of these.
+    el.panel.appendChild(h('button', {
+      class: 'sheet-grab', type: 'button', 'aria-label': 'Close',
+      onclick: function () { select(null, false); }
+    }));
+    if (!selection) { el.panel.appendChild(emptyState()); }
+    else if (selection.kind === 'country') el.panel.appendChild(countryPanel(selection.id));
     else if (selection.kind === 'region') el.panel.appendChild(regionPanel(selection.id));
     else el.panel.appendChild(cityPanel(selection.id));
+    el.panel.classList.toggle('open', !!selection && !panelStashed);
+    el.panel.scrollTop = 0;
+    syncInset();
   }
+
+  var narrow = window.matchMedia('(max-width: 860px)');
+
+  // Tell the map how much of itself the sheet is sitting on top of.
+  function syncInset() {
+    var covered = narrow.matches && el.panel.classList.contains('open');
+    el.stage.classList.toggle('sheet-up', covered);
+    map.setInset(covered ? el.panel.getBoundingClientRect().height : 0);
+  }
+
+  // Dropping a pin means looking at the map, so the sheet gets out of the way
+  // without losing what you had open.
+  var panelStashed = false;
 
   function emptyState() {
     var s = Store.stats();
@@ -531,8 +554,18 @@
 
   function armPin() {
     pinMode = true;
+    panelStashed = true;
+    el.panel.classList.remove('open');
     el.canvas.style.cursor = 'crosshair';
-    toast('Click the map to drop a pin');
+    el.canvas.classList.add('placing');
+    toast('Tap the map where the pin goes');
+  }
+
+  function disarmPin() {
+    pinMode = false;
+    panelStashed = false;
+    el.canvas.style.cursor = '';
+    el.canvas.classList.remove('placing');
   }
 
   function dropPin(lonlat, hit) {
@@ -771,6 +804,7 @@
   // ---- selection ---------------------------------------------------------
 
   function select(next, fly) {
+    if (next) panelStashed = false;
     selection = next;
     map.selected = next;
     if (next && next.kind === 'region') {
@@ -778,9 +812,9 @@
     } else if (next && next.kind === 'country') {
       if (map.focus && map.focus !== next.id) map.focus = null;
     }
+    renderPanel();
     if (fly && next) flyTo(next);
     map.draw();
-    renderPanel();
   }
 
   function flyTo(target) {
@@ -1034,8 +1068,7 @@
     if (moved > 6) return;
     var hit = map.at(start[0], start[1]);
     if (pinMode) {
-      pinMode = false;
-      el.canvas.style.cursor = '';
+      disarmPin();
       var ll = map.toLonLat(start[0], start[1]);
       if (ll) dropPin(ll, hit);
       return;
@@ -1100,9 +1133,10 @@
 
   // ---- wiring ------------------------------------------------------------
 
-  $('zoom-in').addEventListener('click', function () { map.zoomAt(1.6, map.width / 2, map.height / 2); });
-  $('zoom-out').addEventListener('click', function () { map.zoomAt(1 / 1.6, map.width / 2, map.height / 2); });
+  $('zoom-in').addEventListener('click', function () { map.zoomAt(1.6, map.width / 2, map.visibleCenterY()); });
+  $('zoom-out').addEventListener('click', function () { map.zoomAt(1 / 1.6, map.width / 2, map.visibleCenterY()); });
   $('zoom-reset').addEventListener('click', function () { map.reset(); });
+  $('pin-drop').addEventListener('click', armPin);
   $('theme').addEventListener('click', toggleTheme);
   el.listToggle.addEventListener('click', openChecklist);
   el.sumToggle.addEventListener('click', openSummary);
@@ -1139,7 +1173,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       if (!el.sheet.hidden) { closeSheet(); return; }
-      if (pinMode) { pinMode = false; el.canvas.style.cursor = ''; return; }
+      if (pinMode) { disarmPin(); renderPanel(); return; }
       if (view !== 'map') { show('map'); return; }
       if (selection) select(null, false);
     }
@@ -1149,7 +1183,8 @@
     }
   });
 
-  window.addEventListener('resize', function () { map.resize(); });
+  window.addEventListener('resize', function () { map.resize(); syncInset(); });
+  narrow.addEventListener('change', function () { map.setInset(0); syncInset(); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
     if (!Store.settings().theme) applyTheme(null);
   });

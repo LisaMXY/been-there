@@ -303,6 +303,7 @@ a { color: var(--accent); }
 
 #map { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 #map.dragging { cursor: grabbing; }
+#map.placing { cursor: crosshair; }
 
 .map-controls {
   position: absolute;
@@ -381,6 +382,8 @@ a { color: var(--accent); }
 }
 
 .panel-pad { padding: 18px 20px 28px; }
+
+.sheet-grab { display: none; }
 
 .panel h2 {
   margin: 0;
@@ -504,7 +507,7 @@ a { color: var(--accent); }
 .checklist {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 30;
   background: var(--plane);
   overflow-y: auto;
   padding: 20px 20px 48px;
@@ -621,16 +624,70 @@ a { color: var(--accent); }
   #q { width: 100%; max-width: none; }
   .results { width: 100%; }
   .tiles { order: 3; width: 100%; flex-basis: 100%; }
-  .stage { flex-direction: column; }
-  .map-wrap { flex: 1 1 52%; min-height: 240px; }
+
+  /* The map is the app. On a phone it gets the whole stage, and the panel
+     becomes a sheet that slides up over it only when you have picked
+     something - a permanent split left the map about a third of the screen. */
+  .stage { display: block; position: relative; }
+  .map-wrap { position: absolute; inset: 0; }
+
   .panel {
-    flex: 1 1 48%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 68%;
     border-left: 0;
-    border-top: 1px solid var(--line);
-    min-height: 0;
+    border-top: 1px solid var(--line-2);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 30px -12px rgba(11, 11, 11, .35);
+    transform: translateY(101%);
+    transition: transform .22s ease;
+    z-index: 26;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-  .legend { font-size: 11.5px; padding: 7px 9px; gap: 3px 10px; }
+  .panel.open { transform: none; }
+
+  .sheet-grab {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    width: 100%;
+    padding: 11px 0 9px;
+    border: 0;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .sheet-grab::before {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: 0 auto;
+    border-radius: 999px;
+    background: var(--line-2);
+  }
+  .panel-pad { padding: 4px 18px 26px; }
+
+  /* Zoom and pin move out from under the sheet. */
+  .map-controls { left: auto; right: 12px; top: 12px; bottom: auto; }
+  .legend {
+    max-width: calc(100% - 68px);
+    font-size: 11.5px;
+    padding: 7px 9px;
+    gap: 3px 10px;
+    transition: opacity .18s ease;
+  }
+  /* With the sheet up there is one country on screen and a key for it in the
+     sheet itself; the legend is just covering the map. */
+  .stage.sheet-up .legend { opacity: 0; pointer-events: none; }
   .credit { display: none; }
+  .statuses { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 860px) and (prefers-reduced-motion: reduce) {
+  .panel { transition: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -663,7 +720,7 @@ a { color: var(--accent); }
 .summary {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 30;
   background: var(--plane);
   overflow-y: auto;
   padding: 20px 20px 56px;
