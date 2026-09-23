@@ -318,6 +318,31 @@ await check('neighbours are found, and never somewhere already visited', async (
   if (leaked.length) throw new Error('suggests somewhere already visited: ' + leaked.join(', '));
   if (!/borders /.test(rows[0].from)) throw new Error('no neighbour names shown');
 });
+await check('badges are earned by the data, and say what they counted', async () => {
+  const badges = await page.$$eval('.badge', (n) => n.map((x) => ({
+    got: x.classList.contains('got'),
+    title: x.querySelector('b').textContent,
+    note: x.querySelector('span').textContent,
+  })));
+  if (!badges.length) throw new Error('no badges');
+  const got = badges.filter((b) => b.got);
+  if (!got.length) throw new Error('the fixture earns nothing');
+  for (const b of got) {
+    if (!b.note.trim()) throw new Error(b.title + ' is earned but says nothing');
+  }
+  // Every unearned one has to say how far off it is rather than just sit there.
+  for (const b of badges.filter((x) => !x.got)) {
+    if (!/to go|of |not yet/.test(b.note)) throw new Error(b.title + ' gives no target: ' + b.note);
+  }
+  // And a badge must not claim something the store disagrees with.
+  const claimed = got.find((b) => /Ten countries/.test(b.title));
+  if (claimed) {
+    const n = await page.evaluate(() => window.Store.stats().countries);
+    if (Number(claimed.note.replace(/[^0-9]/g, '')) !== n) {
+      throw new Error('badge and totals disagree: ' + claimed.note + ' vs ' + n);
+    }
+  }
+});
 await check('a table row jumps to that country', async () => {
   await page.click('.ledger tbody tr >> nth=0');
   await page.waitForTimeout(800);

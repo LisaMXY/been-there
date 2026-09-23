@@ -18,6 +18,7 @@ const PRECACHE = [
   'src/styles.css',
   'src/store.js',
   'src/atlas.js',
+  'src/badges.js',
   'src/summary.js',
   'src/app.js',
   'vendor/geo.js',

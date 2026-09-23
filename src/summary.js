@@ -440,6 +440,25 @@
     var far = distance(d.cities);
     if (far) root.appendChild(section('How far that is', null, farBlock(far)));
 
+    // badges
+    var badges = window.Badges ? window.Badges.evaluate(far ? far.km : 0) : [];
+    if (badges.length) {
+      var got = badges.filter(function (b) { return b.earned; });
+      var next = badges.filter(function (b) { return !b.earned; })
+        .sort(function (a, b) { return (b.have / b.need) - (a.have / a.need); });
+
+      var grid = h('div', {class: 'badges'});
+      got.concat(next.slice(0, 6)).forEach(function (b) {
+        grid.appendChild(h('div', {class: 'badge' + (b.earned ? ' got' : '')}, [
+          h('b', {text: b.title}),
+          h('span', {text: b.earned ? b.note : shortfall(b)})
+        ]));
+      });
+      root.appendChild(section('Badges',
+        got.length + ' of ' + badges.length + ' earned. Each one counts something you can check.',
+        grid));
+    }
+
     // continents
     var totals = continentTotals();
     var continentRows = Object.keys(d.continents).sort(function (a, b) {
@@ -568,6 +587,16 @@
           ]);
         }))));
     }
+  }
+
+  /* What is left to do, in the badge's own units, so it reads as a target
+     rather than a scolding. */
+  function shortfall(b) {
+    var left = b.need - b.have;
+    if (b.need === 1) return 'not yet';
+    if (b.unit === 'km') return Math.round(left).toLocaleString() + ' km to go';
+    if (b.unit === 'years') return left + (left === 1 ? ' year to go' : ' years to go');
+    return b.have + ' of ' + b.need;
   }
 
   function coord(v, pos, neg) {
