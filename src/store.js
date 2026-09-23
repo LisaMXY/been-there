@@ -221,6 +221,57 @@
     return cache;
   }
 
+  /* The same rollup as effective(), but only counting what you had reached by
+     the end of a given year. Anything with no year on it cannot be placed on a
+     timeline and is left out - the replay says how many that is. */
+  function effectiveAsOf(year) {
+    var out = {countries: {}, regions: {}, skipped: 0};
+    var id;
+
+    var reached = function (entry) {
+      if (!entry.status) return false;
+      if (!entry.first) { out.skipped++; return false; }
+      return entry.first <= year;
+    };
+
+    for (id in data.countries) {
+      if (reached(data.countries[id])) out.countries[id] = data.countries[id].status;
+    }
+    for (id in data.regions) {
+      var region = data.regions[id];
+      if (!reached(region)) continue;
+      out.regions[id] = region.status;
+      var owner = index && index.countryOfRegion[id];
+      if (owner && rank(region.status) > rank(out.countries[owner])) {
+        out.countries[owner] = region.status;
+      }
+    }
+    for (id in data.cities) {
+      var city = data.cities[id];
+      if (!reached(city)) continue;
+      if (city.region && rank(city.status) > rank(out.regions[city.region])) {
+        out.regions[city.region] = city.status;
+      }
+      if (city.country && rank(city.status) > rank(out.countries[city.country])) {
+        out.countries[city.country] = city.status;
+      }
+    }
+    return out;
+  }
+
+  /* Every year anything was first reached, so the replay knows where to start
+     and where to stop. */
+  function yearsCovered() {
+    var years = {};
+    ['countries', 'regions', 'cities'].forEach(function (k) {
+      for (var id in data[k]) {
+        var e = data[k][id];
+        if (e.status && e.first) years[e.first] = true;
+      }
+    });
+    return Object.keys(years).map(Number).sort(function (a, b) { return a - b; });
+  }
+
   // ---- writes ------------------------------------------------------------
 
   function set(kind, id, status, extra) {
@@ -305,8 +356,13 @@
 
   // ---- totals ------------------------------------------------------------
 
-  function stats() {
-    var eff = effective();
+  /* With a year, the totals are as they stood at the end of it, so the header
+     and the legend cannot contradict a map that has been wound back. */
+  function stats(asOf) {
+    var eff = asOf === undefined || asOf === null ? effective() : effectiveAsOf(asOf);
+    var reached = function (entry) {
+      return asOf === undefined || asOf === null || (entry.first && entry.first <= asOf);
+    };
     var floor = data.settings.countStopovers ? 2 : 3;
     var totals = {
       countries: 0, territories: 0, stopovers: 0, wishlist: 0,
@@ -331,7 +387,9 @@
       if (meta.continent) totals.continents[meta.continent] = true;
     }
     for (var rid in eff.regions) if (rank(eff.regions[rid]) >= floor) totals.regions++;
-    for (var cid in data.cities) if (rank(data.cities[cid].status) >= floor) totals.cities++;
+    for (var cid in data.cities) {
+      if (rank(data.cities[cid].status) >= floor && reached(data.cities[cid])) totals.cities++;
+    }
 
     totals.continentCount = Object.keys(totals.continents).length;
     totals.areaPct = totals.areaTotal ? (totals.area / totals.areaTotal) * 100 : 0;
@@ -453,6 +511,8 @@
     entry: entry,
     statusOf: statusOf,
     effective: effective,
+    effectiveAsOf: effectiveAsOf,
+    yearsCovered: yearsCovered,
     effectiveCountry: effectiveCountry,
     effectiveRegion: effectiveRegion,
     set: set,

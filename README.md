@@ -89,6 +89,19 @@ geography can vouch for. Anything sitting within 45 km of a place four times its
 size is somebody else's suburb and is left out, because "Eimsbüttel, Germany" is
 really a suggestion of Hamburg.
 
+## Watching it fill in
+
+The ⟳ button on the map plays your travels back a year at a time, from the first
+place you ever marked to the last. Scrub it, pause it, close it. Everything on
+screen follows the clock — the header totals and the legend as well as the map —
+because a header saying 31 next to a map showing 23 is just wrong.
+
+It reads the same statuses the map always does, only asked as of a year, so the
+last frame is identical to the live map by construction rather than by luck.
+Places with no year cannot be put on a timeline; the bar says how many are
+sitting it out. Editing anything while the clock is wound back closes the replay,
+since otherwise you would be editing a year that is no longer on screen.
+
 ## One border away
 
 The summary works out which countries you have **not** been to that share a land
@@ -200,7 +213,7 @@ npx playwright install chromium
 npm test
 ```
 
-Thirty-seven checks against the real page in a real browser: a fresh browser
+Forty-two checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions
@@ -208,9 +221,10 @@ when you zoom, the UK lists as four home nations, a city lights up its region an
 country, the summary renders, a browser with storage switched off still works and
 says so, the backup nudge appears and clears on the right days, the manifest is
 installable, the service worker serves the page with the network switched off,
-the phone layout gives the map the whole screen and keeps what you selected
-clear of the sheet, the roulette's filters only ever narrow the pool and every
-spin honours them, and nothing overflows sideways. Every one of them is there because
+the phone layout gives the map the whole screen and keeps what you selected and
+the controls clear of the sheet, the roulette's filters only ever narrow the pool
+and every spin honours them, the replay only ever adds countries as it walks
+forward and ends on the live map, and nothing overflows sideways. Every one of them is there because
 that thing broke at least once.
 
 Set `CHROME_PATH` to use a Chromium already on the machine instead of the one

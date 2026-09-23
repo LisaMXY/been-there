@@ -14,7 +14,9 @@
     sheetTitle: $('sheet-title'), sheetBody: $('sheet-body'), sheetActions: $('sheet-actions'),
     listToggle: $('list-toggle'), sumToggle: $('sum-toggle'),
     summary: $('summary'), storageNote: $('storage-note'),
-    stage: document.querySelector('.stage')
+    stage: document.querySelector('.stage'),
+    replay: $('replay'), replayYear: $('replay-year'), replayRange: $('replay-range'),
+    replayTally: $('replay-tally'), replayPlay: $('replay-play')
   };
 
   var map = new Atlas.MapView(el.canvas);
@@ -59,7 +61,7 @@
   // ---- header ------------------------------------------------------------
 
   function renderTiles() {
-    var s = Store.stats();
+    var s = Store.stats(map.asOf);
     var tiles = [
       ['Countries', num(s.countries), s.countriesTotal ? 'of ' + s.countriesTotal : ''],
       ['Territories', num(s.territories), ''],
@@ -79,7 +81,7 @@
   }
 
   function renderLegend() {
-    var eff = Store.effective();
+    var eff = map.asOf === null ? Store.effective() : Store.effectiveAsOf(map.asOf);
     var counts = {};
     for (var id in eff.countries) {
       counts[eff.countries[id]] = (counts[eff.countries[id]] || 0) + 1;
@@ -94,7 +96,10 @@
     });
     var pin = h('span', {class: 'sw dot'});
     pin.style.background = 'var(--s-city)';
-    var cityCount = Object.keys(Store.cities()).length;
+    var saved = Store.cities();
+    var cityCount = Object.keys(saved).filter(function (k) {
+      return map.asOf === null || (saved[k].first && saved[k].first <= map.asOf);
+    }).length;
     el.legend.appendChild(h('span', {class: 'key'}, [
       pin, h('span', {text: 'City'}), h('span', {class: 'n', text: String(cityCount)})
     ]));
@@ -610,6 +615,7 @@
   var view = 'map';   // 'map' | 'checklist' | 'summary'
 
   function show(next) {
+    if (replay.open && next !== 'map') stopReplay();
     view = view === next ? 'map' : next;
     el.checklist.hidden = view !== 'checklist';
     el.summary.hidden = view !== 'summary';
@@ -832,6 +838,84 @@
         map.fitBounds([city.lon - pad, city.lat - pad, city.lon + pad, city.lat + pad], 40);
       }
     }
+  }
+
+  // ---- the replay --------------------------------------------------------
+
+  /* Watch the map fill in, a year at a time. It reads the same statuses the map
+     always does, just asked as of a year, so nothing here can drift away from
+     what the map otherwise shows. */
+  var replay = {open: false, years: [], at: 0, timer: null};
+
+  // Swapped into the <svg>, not over it - replacing the button's whole contents
+  // loses the viewBox and leaves a blank square.
+  var PLAY = '<path d="M8 5.5 18 12 8 18.5Z"/>';
+  var PAUSE = '<path d="M8.5 5.5h3v13h-3zM12.5 5.5h3v13h-3z"/>';
+  var playIcon = function () { return el.replayPlay.querySelector('svg'); };
+
+  function toggleReplay() {
+    if (replay.open) { stopReplay(); return; }
+    replay.years = Store.yearsCovered();
+    if (replay.years.length < 2) {
+      toast('Add a year or two to your places and the replay has something to show.');
+      return;
+    }
+    replay.open = true;
+    replay.at = 0;
+    el.replay.hidden = false;
+    $('replay-toggle').setAttribute('aria-pressed', 'true');
+    el.replayRange.max = String(replay.years.length - 1);
+    el.replayRange.value = '0';
+    showYear(0);
+    play();
+  }
+
+  function stopReplay() {
+    pause();
+    replay.open = false;
+    el.replay.hidden = true;
+    $('replay-toggle').setAttribute('aria-pressed', 'false');
+    map.asOf = null;
+    map.draw();
+    renderTiles();
+    renderLegend();
+  }
+
+  function showYear(i) {
+    replay.at = Math.max(0, Math.min(replay.years.length - 1, i));
+    var year = replay.years[replay.at];
+    map.asOf = year;
+    el.replayRange.value = String(replay.at);
+    el.replayYear.textContent = String(year);
+
+    var as = Store.effectiveAsOf(year);
+    var n = 0;
+    for (var id in as.countries) if (Store.rank(as.countries[id]) >= 3) n++;
+    el.replayTally.textContent = n + (n === 1 ? ' country' : ' countries') +
+      (as.skipped ? ' · ' + as.skipped + ' undated' : '');
+    map.draw();
+    // The header and the legend follow the clock, or they would be arguing with
+    // the map right next to them.
+    renderTiles();
+    renderLegend();
+  }
+
+  function play() {
+    if (replay.timer) return;
+    if (replay.at >= replay.years.length - 1) showYear(0);
+    playIcon().innerHTML = PAUSE;
+    el.replayPlay.setAttribute('aria-label', 'Pause');
+    replay.timer = setInterval(function () {
+      if (replay.at >= replay.years.length - 1) { pause(); return; }
+      showYear(replay.at + 1);
+    }, 850);
+  }
+
+  function pause() {
+    if (replay.timer) clearInterval(replay.timer);
+    replay.timer = null;
+    playIcon().innerHTML = PLAY;
+    el.replayPlay.setAttribute('aria-label', 'Play');
   }
 
   // ---- roulette ----------------------------------------------------------
@@ -1161,6 +1245,13 @@
   $('zoom-reset').addEventListener('click', function () { map.reset(); });
   $('pin-drop').addEventListener('click', armPin);
   $('roulette').addEventListener('click', openRoulette);
+  $('replay-toggle').addEventListener('click', toggleReplay);
+  $('replay-close').addEventListener('click', stopReplay);
+  el.replayPlay.addEventListener('click', function () { if (replay.timer) pause(); else play(); });
+  el.replayRange.addEventListener('input', function () {
+    pause();
+    showYear(Number(el.replayRange.value));
+  });
   $('theme').addEventListener('click', toggleTheme);
   el.listToggle.addEventListener('click', openChecklist);
   el.sumToggle.addEventListener('click', openSummary);
@@ -1197,6 +1288,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       if (!el.sheet.hidden) { closeSheet(); return; }
+      if (replay.open) { stopReplay(); return; }
       if (pinMode) { disarmPin(); renderPanel(); return; }
       if (view !== 'map') { show('map'); return; }
       if (selection) select(null, false);
@@ -1258,6 +1350,9 @@
 
   Store.subscribe(function (reason) {
     if (reason === 'storage-failed') nagged = false;
+    // Editing while the clock is wound back would show you a year that is no
+    // longer true, so the replay steps aside.
+    if (replay.open && (reason === 'status' || reason === 'replace')) stopReplay();
     refresh();
   });
 

@@ -407,6 +407,101 @@ await check('the service worker registers and serves the page offline', async ()
   if (out[0] !== 1) throw new Error('offline reload lost the data: ' + out[0]);
 });
 
+console.log('\nthe replay');
+await check('it winds the map back and fills it in again', async () => {
+  await loadFixture();
+  await page.waitForTimeout(400);
+  await page.click('#replay-toggle');
+  await page.waitForTimeout(500);
+  if (await page.getAttribute('#replay', 'hidden') !== null) throw new Error('the bar did not open');
+
+  const years = await page.evaluate(() => window.Store.yearsCovered());
+  if (years.length < 2) throw new Error('fixture has too few years');
+
+  // Walking forward can only ever add countries, never take one away.
+  let last = -1;
+  for (let i = 0; i < years.length; i++) {
+    await page.evaluate((idx) => {
+      const r = document.getElementById('replay-range');
+      r.value = String(idx);
+      r.dispatchEvent(new Event('input', {bubbles: true}));
+    }, i);
+    await page.waitForTimeout(250);
+    const n = await page.evaluate(() => {
+      const as = window.Store.effectiveAsOf(window.BeenThere.map.asOf);
+      return Object.keys(as.countries).filter((k) => window.Store.rank(as.countries[k]) >= 3).length;
+    });
+    if (n < last) throw new Error(`countries went down at ${years[i]}: ${last} -> ${n}`);
+    last = n;
+  }
+});
+await check('the last year matches the live map, bar what has no year', async () => {
+  const out = await page.evaluate(() => {
+    const as = window.Store.effectiveAsOf(window.BeenThere.map.asOf);
+    const all = window.Store.effective();
+    const raw = window.Store.raw();
+    // A want-to-go country has no year because it has not happened; the replay
+    // is of what did. Anything dated must be there by the last frame.
+    const dated = Object.keys(all.countries).filter((k) => {
+      const e = raw.countries[k];
+      return e && e.first;
+    });
+    return {
+      missing: dated.filter((k) => !as.countries[k]),
+      extra: Object.keys(as.countries).filter((k) => !all.countries[k]),
+      undated: Object.keys(all.countries).length - dated.length,
+    };
+  });
+  if (out.missing.length) throw new Error('replay ends short of: ' + out.missing.join(', '));
+  if (out.extra.length) throw new Error('replay invents: ' + out.extra.join(', '));
+  if (!out.undated) throw new Error('fixture should include something undated to prove the point');
+});
+await check('the header and legend follow the clock', async () => {
+  const years = await page.evaluate(() => window.Store.yearsCovered());
+  await page.evaluate(() => {
+    const r = document.getElementById('replay-range');
+    r.value = '0';
+    r.dispatchEvent(new Event('input', {bubbles: true}));
+  });
+  await page.waitForTimeout(400);
+  const seen = await page.evaluate(() => {
+    const tile = [...document.querySelectorAll('.tile')]
+      .find((t) => /COUNTRIES/i.test(t.textContent));
+    const as = window.Store.effectiveAsOf(window.BeenThere.map.asOf);
+    let n = 0;
+    for (const id in as.countries) if (window.Store.rank(as.countries[id]) >= 3) n++;
+    return {header: Number(tile.querySelector('b').textContent), expected: n};
+  });
+  eq(seen.header, seen.expected, 'the header while wound back to ' + years[0]);
+});
+await check('pausing holds, and closing puts it all back', async () => {
+  await page.click('#replay-play');                 // play from the start
+  await page.waitForTimeout(1900);
+  await page.click('#replay-play');                 // pause
+  const held = await page.textContent('#replay-year');
+  await page.waitForTimeout(1500);
+  eq(await page.textContent('#replay-year'), held, 'the year while paused');
+
+  await page.click('#replay-close');
+  await page.waitForTimeout(400);
+  if (await page.evaluate(() => window.BeenThere.map.asOf) !== null) throw new Error('clock left wound back');
+  const n = await page.evaluate(() => window.Store.stats().countries);
+  const header = await page.evaluate(() => Number([...document.querySelectorAll('.tile')]
+    .find((t) => /COUNTRIES/i.test(t.textContent)).querySelector('b').textContent));
+  eq(header, n, 'the header after closing');
+});
+await check('editing while wound back stands the replay down', async () => {
+  await page.click('#replay-toggle');
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.Store.set('country', 'BRA', 'visited'));
+  await page.waitForTimeout(500);
+  if (await page.getAttribute('#replay', 'hidden') === null) {
+    throw new Error('the replay kept running over an edit');
+  }
+  await page.evaluate(() => window.Store.set('country', 'BRA', null));
+  await page.waitForTimeout(300);
+});
+
 console.log('\nthe roulette');
 await check('it opens with filters and a pool', async () => {
   await loadFixture();

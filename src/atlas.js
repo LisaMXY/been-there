@@ -138,6 +138,7 @@
     this.path = topo.geoPath(this.projection, this.ctx);
     this.graticule = topo.geoGraticule().step([20, 20]);
     this.focus = null;        // country id whose regions are on show
+    this.asOf = null;         // a year, while the replay is running
     this.hover = null;        // {kind, id}
     this.selected = null;     // {kind, id}
     this.pins = [];           // screen positions of drawn city pins, for hit tests
@@ -273,7 +274,9 @@
     if (!regionsReady) return drilled;
     if (this.focus) drilled[this.focus] = true;
     if (this.k >= this.DRILL_ZOOM) {
-      var eff = window.Store.effective();
+      var eff = this.asOf === null
+        ? window.Store.effective()
+        : window.Store.effectiveAsOf(this.asOf);
       for (var rid in eff.regions) {
         var owner = index.countryOfRegion[rid];
         if (owner) drilled[owner] = true;
@@ -284,7 +287,9 @@
 
   MapView.prototype.render = function () {
     var ctx = this.ctx;
-    var eff = window.Store.effective();
+    var eff = this.asOf === null
+      ? window.Store.effective()
+      : window.Store.effectiveAsOf(this.asOf);
     var c = this.colors;
 
     ctx.save();
@@ -365,6 +370,8 @@
     var saved = window.Store.cities();
     for (var key in saved) {
       var city = saved[key];
+      // Mid-replay, a pin has not happened yet.
+      if (this.asOf !== null && (!city.first || city.first > this.asOf)) continue;
       var p = this.projection([city.lon, city.lat]);
       if (!p) continue;
       var sx = p[0] * this.k + this.tx;

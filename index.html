@@ -71,6 +71,22 @@
       <button class="btn icon" type="button" id="roulette" aria-label="Where next?" title="Where next?">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="15" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="9" cy="15" r="1.3"/></svg>
       </button>
+      <button class="btn icon" type="button" id="replay-toggle" aria-label="Replay the years" title="Replay the years" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-8.5 6.1"/><path d="M3 4v5.5h5.5"/><path d="M10.5 9.5 16 12.5l-5.5 3Z"/></svg>
+      </button>
+    </div>
+
+    <div class="replay" id="replay" hidden>
+      <button class="btn icon" type="button" id="replay-play" aria-label="Play">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 18 12 8 18.5Z"/></svg>
+      </button>
+      <span class="replay-year" id="replay-year">—</span>
+      <input class="replay-range" id="replay-range" type="range" min="0" max="0" step="1" value="0"
+             aria-label="Year">
+      <span class="replay-tally" id="replay-tally"></span>
+      <button class="btn icon" type="button" id="replay-close" aria-label="Close the replay">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
     </div>
 
     <div class="legend" id="legend" aria-label="Legend"></div>
