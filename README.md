@@ -89,6 +89,19 @@ geography can vouch for. Anything sitting within 45 km of a place four times its
 size is somebody else's suburb and is left out, because "Eimsbüttel, Germany" is
 really a suggestion of Hamburg.
 
+## One border away
+
+The summary works out which countries you have **not** been to that share a land
+border with one you have, ordered by how surrounded they are — being next door to
+four of your countries is a better prompt than being next door to one. The
+roulette has the same thing as a filter.
+
+Borders are not a separate dataset that can go stale: an edge shared by two
+country shapes in the map's own topology *is* a border. That gets the awkward
+ones right, including the ones a list would miss — France borders Brazil and
+Suriname, through French Guiana, so a Brazilian beach is legitimately one border
+from a trip to Paris.
+
 ## The summary
 
 The **Summary** button adds the whole thing up: how much of the world's land and
@@ -187,7 +200,7 @@ npx playwright install chromium
 npm test
 ```
 
-Thirty-four checks against the real page in a real browser: a fresh browser
+Thirty-seven checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions
@@ -217,7 +230,7 @@ src/styles.css
 src/summary.js      the totals and the charts
 src/roulette.js     where next, and the filters
 vendor/geo.js       d3-geo + topojson-client, bundled (33 KB)
-data/*.js           the maps, the city list and your trips, pre-built
+data/*.js           the maps, borders, the city list and your trips, pre-built
 sw.js               offline for the hosted copy
 manifest.webmanifest, icons/
 tools/              how everything in data/, icons/ and vendor/ was generated

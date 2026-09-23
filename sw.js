@@ -4,7 +4,7 @@
 
    Bump VERSION whenever anything in data/ or src/ changes; the old cache is
    thrown away on activate. */
-const VERSION = 'been-there-v2';
+const VERSION = 'been-there-v3';
 
 /* The page and the code are network-first: when you are online you always get
    what the server has, so a redeploy is never masked by a stale cache. The two
@@ -22,6 +22,7 @@ const PRECACHE = [
   'src/app.js',
   'vendor/geo.js',
   'data/countries.js',
+  'data/borders.js',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',

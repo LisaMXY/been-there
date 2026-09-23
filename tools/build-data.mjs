@@ -210,6 +210,10 @@ async function buildCountries(admin1Features) {
   const topo = await repairWinding('countries',
     await toTopology('countries', {type: 'FeatureCollection', features}, {retain: 0.35}));
   await writeDataFile('countries', 'TM_COUNTRIES', topo);
+
+  const borders = buildBorders(topo, 'countries');
+  await writeDataFile('borders', 'TM_BORDERS', borders);
+  console.log(`borders    ${Object.keys(borders).length} countries have a land neighbour`);
   console.log(`countries  ${features.length} features`);
   return features;
 }
@@ -410,12 +414,49 @@ async function buildCities(regions, countries) {
 
 await mkdir(cache, {recursive: true});
 await mkdir(out, {recursive: true});
+/* Who borders whom, straight out of the topology: an arc shared by two country
+   geometries is a land border between them. No separate dataset to go stale,
+   and it gets the awkward ones right - France borders Brazil, through French
+   Guiana. */
+function buildBorders(topo, name) {
+  const owners = new Map();
+  const walk = (arcs, id) => {
+    if (!arcs.length) return;
+    if (typeof arcs[0] === 'number') {
+      for (const i of arcs) {
+        const k = i < 0 ? ~i : i;
+        let set = owners.get(k);
+        if (!set) owners.set(k, (set = new Set()));
+        set.add(id);
+      }
+      return;
+    }
+    arcs.forEach((a) => walk(a, id));
+  };
+  for (const g of topo.objects[name].geometries) walk(g.arcs || [], g.properties.id);
+
+  const nb = {};
+  for (const set of owners.values()) {
+    if (set.size < 2) continue;                 // an unshared arc is coastline
+    const list = [...set];
+    for (const a of list) {
+      for (const b of list) {
+        if (a === b) continue;
+        (nb[a] = nb[a] || new Set()).add(b);
+      }
+    }
+  }
+  const out = {};
+  Object.keys(nb).sort().forEach((id) => { out[id] = [...nb[id]].sort(); });
+  return out;
+}
+
 const regions = await reduceAdmin1();
 const countries = await buildCountries(regions);
 await writeAdmin1(regions);
 await buildCities(regions, countries);
 
-for (const f of ['countries.js', 'admin1.js', 'cities.js']) {
+for (const f of ['countries.js', 'borders.js', 'admin1.js', 'cities.js']) {
   const {size} = await stat(path.join(out, f));
   console.log(`  ${f.padEnd(22)} ${(size / 1024).toFixed(0)} KB`);
 }

@@ -231,6 +231,38 @@
     return out;
   }
 
+  /* Countries you have not been to that touch one you have. Being next door to
+     three of your countries is a better prompt than being next door to one, so
+     that is the order. Borders come out of the map's own shared edges, so the
+     awkward cases are right: France borders Brazil, through French Guiana. */
+  function nextDoor(counted) {
+    var borders = window.TM_BORDERS;
+    if (!borders) return [];
+    var eff = Store.effective();
+    var out = {};
+    Object.keys(counted).forEach(function (id) {
+      (borders[id] || []).forEach(function (other) {
+        if (counted[other]) return;
+        if (Store.rank(eff.countries[other]) >= 3) return;
+        var meta = Atlas.index.country[other];
+        if (!meta || meta.kind !== 'country') return;
+        if (!out[other]) out[other] = {id: other, meta: meta, from: [], wish: eff.countries[other]};
+        out[other].from.push(Atlas.index.country[id] ? Atlas.index.country[id].name : id);
+      });
+    });
+    return Object.keys(out).map(function (k) { return out[k]; })
+      .sort(function (a, b) {
+        return b.from.length - a.from.length || a.meta.name.localeCompare(b.meta.name);
+      });
+  }
+
+  function andList(names) {
+    var sorted = names.slice().sort();
+    if (sorted.length === 1) return sorted[0];
+    if (sorted.length === 2) return sorted.join(' and ');
+    return sorted.slice(0, -1).join(', ') + ' and ' + sorted[sorted.length - 1];
+  }
+
   function continentTotals() {
     var totals = {};
     Atlas.countries().forEach(function (f) {
@@ -418,6 +450,28 @@
     root.appendChild(section('Continents', null, ranked(continentRows, {
       format: function (r) { return r.value + ' of ' + r.of; }
     })));
+
+    // what is one border away
+    var near = nextDoor(d.counted);
+    if (near.length) {
+      var list = h('ul', {class: 'nextdoor'});
+      near.slice(0, 12).forEach(function (n) {
+        list.appendChild(h('li', {class: 'pickable', onclick: function () {
+          api.open({kind: 'country', id: n.id});
+        }}, [
+          h('span', {class: 'nd-count', text: String(n.from.length)}),
+          h('span', {class: 'nd-main'}, [
+            h('b', {text: n.meta.name}),
+            h('span', {class: 'nd-from', text: 'borders ' + andList(n.from)})
+          ]),
+          n.wish ? h('span', {class: 'chip-tag', text: 'Want to go'}) : null
+        ]));
+      });
+      root.appendChild(section('One border away',
+        near.length + ' countries you have not been to touch one you have' +
+        (near.length > 12 ? ' — the twelve most surrounded are here' : '') + '.',
+        list));
+    }
 
     // deepest countries
     var byCountry = {};

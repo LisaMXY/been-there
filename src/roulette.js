@@ -37,6 +37,22 @@
 
   var CONTINENTS = ['Africa', 'Asia', 'Europe', 'North America', 'Oceania', 'South America'];
 
+  /* The set of countries one land border from somewhere you have been - the
+     cheapest trip on the board, and the most likely to actually happen. */
+  function nextDoorSet() {
+    var borders = window.TM_BORDERS;
+    if (!borders) return null;
+    var eff = Store.effective();
+    var out = {};
+    Object.keys(eff.countries).forEach(function (id) {
+      if (Store.rank(eff.countries[id]) < 3) return;
+      (borders[id] || []).forEach(function (other) {
+        if (Store.rank(eff.countries[other]) < 3) out[other] = true;
+      });
+    });
+    return out;
+  }
+
   var state = null;
   var col = null;
   var spinning = false;
@@ -46,13 +62,15 @@
     return {
       traits: saved && saved.traits ? saved.traits.slice() : [],
       continent: saved && saved.continent ? saved.continent : '',
-      unvisited: !saved || saved.unvisited !== false
+      unvisited: !saved || saved.unvisited !== false,
+      nextDoor: !!(saved && saved.nextDoor)
     };
   }
 
   function remember() {
     Store.setSetting('roulette', {
-      traits: state.traits.slice(), continent: state.continent, unvisited: state.unvisited
+      traits: state.traits.slice(), continent: state.continent,
+      unvisited: state.unvisited, nextDoor: state.nextDoor
     });
   }
 
@@ -87,6 +105,7 @@
     var want = traitBits(state.traits);
     var STRONG = T.island | T.mountain | T.desert | T.coast;
     var eff = Store.effective();
+    var near = state.nextDoor ? nextDoorSet() : null;
     var out = [];
 
     for (var i = 0; i < w.rows.length; i++) {
@@ -104,6 +123,7 @@
 
       if (state.continent && meta.continent !== state.continent) continue;
       if (state.unvisited && Store.rank(eff.countries[id]) >= 3) continue;
+      if (near && !near[id]) continue;
 
       out.push(r);
     }
@@ -152,6 +172,14 @@
       })
     ));
 
+    var door = h('input', {type: 'checkbox', id: 'roul-door'});
+    door.checked = state.nextDoor;
+    door.addEventListener('change', function () {
+      state.nextDoor = door.checked;
+      remember();
+      render(ctx, null);
+    });
+
     var only = h('input', {type: 'checkbox', id: 'roul-new'});
     only.checked = state.unvisited;
     only.addEventListener('change', function () {
@@ -164,7 +192,10 @@
       where,
       h('label', {class: 'roul-check', for: 'roul-new'}, [
         only, h('span', {text: 'Only countries I have not been to'})
-      ])
+      ]),
+      window.TM_BORDERS ? h('label', {class: 'roul-check', for: 'roul-door'}, [
+        door, h('span', {text: 'Next door to somewhere I have been'})
+      ]) : null
     ]));
 
     body.push(h('p', {class: 'roul-count', text: pool.length

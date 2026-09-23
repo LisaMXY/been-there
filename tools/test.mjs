@@ -297,6 +297,27 @@ await check('the distance travelled is computed and stable', async () => {
     throw new Error('the estimate does not say what it is');
   }
 });
+await check('neighbours are found, and never somewhere already visited', async () => {
+  const rows = await page.$$eval('.nextdoor li', (n) => n.map((x) => ({
+    n: Number(x.querySelector('.nd-count').textContent),
+    name: x.querySelector('b').textContent,
+    from: x.querySelector('.nd-from').textContent,
+  })));
+  if (!rows.length) throw new Error('no neighbours found');
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].n > rows[i - 1].n) throw new Error('not ordered by how surrounded they are');
+  }
+  const leaked = await page.evaluate((names) => {
+    const eff = window.Store.effective();
+    const byName = {};
+    Object.keys(window.Atlas.index.country).forEach((k) => {
+      byName[window.Atlas.index.country[k].name] = k;
+    });
+    return names.filter((nm) => byName[nm] && window.Store.rank(eff.countries[byName[nm]]) >= 3);
+  }, rows.map((r) => r.name));
+  if (leaked.length) throw new Error('suggests somewhere already visited: ' + leaked.join(', '));
+  if (!/borders /.test(rows[0].from)) throw new Error('no neighbour names shown');
+});
 await check('a table row jumps to that country', async () => {
   await page.click('.ledger tbody tr >> nth=0');
   await page.waitForTimeout(800);
@@ -442,7 +463,26 @@ await check('it never suggests a country you have been to', async () => {
   }
   if (!been.length) throw new Error('fixture had no visited countries to exclude');
 });
+await check('the next-door filter narrows the roulette', async () => {
+  for (const chip of ['Coast', 'Tropical', 'Small towns']) {
+    const on = await page.getAttribute(`.chip-toggle:has-text("${chip}")`, 'aria-pressed');
+    if (on === 'true') { await page.click(`.chip-toggle:has-text("${chip}")`); await page.waitForTimeout(200); }
+  }
+  await page.waitForTimeout(300);
+  const count = async () => Number((await page.textContent('.roul-count')).replace(/[^0-9]/g, ''));
+  const before = await count();
+  await page.click('label[for=roul-door]');
+  await page.waitForTimeout(400);
+  const after = await count();
+  if (after >= before) throw new Error(`next-door did not narrow: ${before} -> ${after}`);
+  if (!after) throw new Error('next-door left nothing');
+  await page.click('label[for=roul-door]');
+  await page.waitForTimeout(300);
+});
 await check('a suggestion can be added to want to go', async () => {
+  // Changing a filter clears the slot, so spin again before reaching for it.
+  await page.click('.sheet-actions .btn.primary');
+  await page.waitForTimeout(1300);
   const before = await page.evaluate(() => Object.keys(window.Store.cities()).length);
   await page.click('.result-actions .btn:not([disabled])');
   await page.waitForTimeout(600);
