@@ -371,12 +371,16 @@
       var sy = p[1] * this.k + this.ty;
       if (sx < -20 || sy < -20 || sx > this.width + 20 || sy > this.height + 20) continue;
       this.pins.push({id: key, x: sx, y: sy, city: city});
+      // Somewhere you want to go is a hollow pin, somewhere you have been is
+      // solid. Shape rather than a second colour, so it survives a colourblind
+      // reader and a black-and-white print.
+      var wish = city.status === 'wishlist';
       ctx.beginPath();
       ctx.arc(sx, sy, 4.6, 0, Math.PI * 2);
-      ctx.fillStyle = c['--s-city'];
+      ctx.fillStyle = wish ? c['--surface'] : c['--s-city'];
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = c['--surface'];
+      ctx.lineWidth = wish ? 2.4 : 2;
+      ctx.strokeStyle = wish ? c['--s-city'] : c['--surface'];
       ctx.stroke();
     }
 

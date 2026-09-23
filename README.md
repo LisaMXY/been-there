@@ -58,6 +58,37 @@ change, the cruise stop that let you off for four hours. They get their own
 colour and are left out of the headline totals by default — flip that under
 **Data → What counts as visited** if you count them.
 
+## Where next?
+
+The dice button spins a destination out of about seven thousand places and drops
+it in front of you. Filters narrow it: **coast, islands, mountains, desert,
+tropical, far north or south, big cities, small towns, capitals**, plus a
+continent, plus *only countries I have not been to* — which is the point of
+having the map in the first place. A result can go straight onto the map as
+somewhere you want to go.
+
+Every one of those traits is **computed, not curated**:
+
+| Trait | How it is decided |
+|---|---|
+| Coast | within 30 km of Natural Earth's coastline |
+| Islands | on a named island under 200,000 km² — Java counts, Great Britain does not |
+| Mountains | in, or within 45 km of, one of 222 named ranges |
+| Desert | inside one of 58 named deserts |
+| Tropical / far north | latitude |
+| Big city / small town | population |
+
+There is deliberately no "charming" or "good food". A boundary file has no
+opinion about those, and inventing one would make the filters lie. The desert
+layer is the thinnest — Las Vegas is not inside a named desert polygon, so it is
+not tagged one.
+
+The pool is places worth suggesting rather than every settlement on Earth: a
+capital, somewhere genuinely large, or somewhere small with a character the
+geography can vouch for. Anything sitting within 45 km of a place four times its
+size is somebody else's suburb and is left out, because "Eimsbüttel, Germany" is
+really a suggestion of Hamburg.
+
 ## The summary
 
 The **Summary** button adds the whole thing up: how much of the world's land and
@@ -140,8 +171,9 @@ visit, so let it finish loading once while you have a connection.
 
 The page and the code are fetched network-first, so a redeploy is never masked
 by a stale cache. The two big data files are served from cache until `VERSION`
-in `sw.js` changes, which is the line to bump after `npm run data`. Icons are
-rebuilt from `icons/*.svg` with `npm run icons`.
+in `sw.js` changes, which is the line to bump after `npm run data` — it is the
+only manual step in the whole build, and forgetting it leaves installed copies on
+stale maps. Icons are rebuilt from `icons/*.svg` with `npm run icons`.
 
 None of this applies to opening `index.html` from disk — a service worker only
 runs over http(s), and the app already needs no network.
@@ -155,7 +187,7 @@ npx playwright install chromium
 npm test
 ```
 
-Twenty-nine checks against the real page in a real browser: a fresh browser
+Thirty-four checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions
@@ -164,7 +196,8 @@ country, the summary renders, a browser with storage switched off still works an
 says so, the backup nudge appears and clears on the right days, the manifest is
 installable, the service worker serves the page with the network switched off,
 the phone layout gives the map the whole screen and keeps what you selected
-clear of the sheet, and nothing overflows sideways. Every one of them is there because
+clear of the sheet, the roulette's filters only ever narrow the pool and every
+spin honours them, and nothing overflows sideways. Every one of them is there because
 that thing broke at least once.
 
 Set `CHROME_PATH` to use a Chromium already on the machine instead of the one
@@ -182,6 +215,7 @@ src/atlas.js        geometry, the canvas, hit-testing
 src/app.js          panel, checklist, search, import/export
 src/styles.css
 src/summary.js      the totals and the charts
+src/roulette.js     where next, and the filters
 vendor/geo.js       d3-geo + topojson-client, bundled (33 KB)
 data/*.js           the maps, the city list and your trips, pre-built
 sw.js               offline for the hosted copy
@@ -200,7 +234,7 @@ load in the background when they are first wanted.
 ```sh
 cd tools
 npm install
-npm run data     # downloads Natural Earth, rebuilds the maps and the city list
+npm run data     # downloads Natural Earth, rebuilds the maps, cities and traits
 npm run travels  # rebuilds data/travels.js from travels.txt
 npm run check    # validates the result
 npm run vendor   # rebuilds vendor/geo.js
@@ -237,8 +271,9 @@ via **Show on map** in the country panel.
 
 ## Credits and licence
 
-Boundaries from [Natural Earth](https://www.naturalearthdata.com/) (public
-domain). City coordinates from [GeoNames](https://www.geonames.org/), licensed
+Boundaries, coastline and physical geography — the mountain ranges, deserts and
+islands behind the roulette's filters — from
+[Natural Earth](https://www.naturalearthdata.com/) (public domain). City coordinates from [GeoNames](https://www.geonames.org/), licensed
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via the
 `all-the-cities` package. [d3-geo](https://github.com/d3/d3-geo) and
 [topojson-client](https://github.com/topojson/topojson-client) are ISC licensed.

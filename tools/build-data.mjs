@@ -15,6 +15,7 @@ import {pipeline} from 'node:stream/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {geoArea, geoContains, geoBounds, geoCentroid} from 'd3-geo';
+import {loadTagger, TRAIT} from './traits.mjs';
 import {feature as toFeatures} from 'topojson-client';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -306,6 +307,48 @@ function assignRegions(cities, regions) {
   console.log(`cities     ${hit}/${cities.length} resolved to a region`);
 }
 
+/* A suggestion of "Eimsbüttel, Germany" is really a suggestion of Hamburg, and
+   a roulette full of suburbs is a bad roulette. Anything sitting within 45 km of
+   a place four times its size is somebody else's outskirts - which is most of
+   Long Island, the Ruhr and the Kanto plain, and rightly so. */
+function markSatellites(cities) {
+  const CELL = 0.5;
+  const REACH_DEG = 45 / 111.32;
+  const grid = new Map();
+  const key = (x, y) => x + ':' + y;
+  for (const c of cities) {
+    const k = key(Math.floor(c.loc[0] / CELL), Math.floor(c.loc[1] / CELL));
+    let bucket = grid.get(k);
+    if (!bucket) grid.set(k, (bucket = []));
+    bucket.push(c);
+  }
+
+  const reach = Math.ceil(REACH_DEG / CELL);
+  let found = 0;
+  for (const c of cities) {
+    if (c.section) { c.traits |= TRAIT.satellite; found++; continue; }
+    if (c.capital) continue;
+    const cx = Math.floor(c.loc[0] / CELL);
+    const cy = Math.floor(c.loc[1] / CELL);
+    const cosLat = Math.cos((c.loc[1] * Math.PI) / 180);
+    let overshadowed = false;
+    for (let x = cx - reach; x <= cx + reach && !overshadowed; x++) {
+      for (let y = cy - reach; y <= cy + reach && !overshadowed; y++) {
+        const bucket = grid.get(key(x, y));
+        if (!bucket) continue;
+        for (const other of bucket) {
+          if (other.pop < c.pop * 4) continue;
+          const dx = (other.loc[0] - c.loc[0]) * cosLat;
+          const dy = other.loc[1] - c.loc[1];
+          if (dx * dx + dy * dy <= REACH_DEG * REACH_DEG) { overshadowed = true; break; }
+        }
+      }
+    }
+    if (overshadowed) { c.traits |= TRAIT.satellite; found++; }
+  }
+  console.log(`satellites ${found} places live in a bigger neighbour's shadow`);
+}
+
 async function buildCities(regions, countries) {
   const {default: all} = await import('all-the-cities');
   // Everything over 15k, plus every national and first-order capital however
@@ -329,20 +372,40 @@ async function buildCities(regions, countries) {
     country: byIso2.get(c.country) || null,
     region: null,
     capital: c.featureCode === 'PPLC' || undefined,
+    // GeoNames' "section of populated place" - a named neighbourhood, never a
+    // destination in its own right.
+    section: c.featureCode === 'PPLX',
   }));
 
   assignRegions(cities, regions);
 
+  // What each place is like - coast, mountains, desert and the rest - so the
+  // roulette can be filtered on something real rather than on guesswork.
+  const tagger = await loadTagger();
+  console.log(`physical   ${tagger.summary}`);
+  let tagged = 0;
+  for (const c of cities) {
+    c.traits = tagger.tag(c.loc[0], c.loc[1], c.pop, c.capital);
+    if (++tagged % 5000 === 0) process.stdout.write(`\r  tagging ${tagged}/${cities.length}`);
+  }
+  process.stdout.write('\r'.padEnd(30) + '\r');
+  markSatellites(cities);
+
   // Columnar, because 28k objects of identical shape is a lot of repeated keys.
   const payload = {
     format: 'columns',
-    columns: ['id', 'name', 'cc', 'pop', 'lon', 'lat', 'country', 'region', 'capital'],
+    traits: TRAIT,
+    columns: ['id', 'name', 'cc', 'pop', 'lon', 'lat', 'country', 'region', 'capital', 'traits'],
     rows: cities.map((c) => [
       c.id, c.name, c.cc, c.pop, c.loc[0], c.loc[1], c.country, c.region, c.capital ? 1 : 0,
+      c.traits,
     ]),
   };
   await writeDataFile('cities', 'TM_CITIES', payload);
   console.log(`cities     ${cities.length} kept`);
+  for (const [name, bit] of Object.entries(TRAIT)) {
+    console.log(`  ${name.padEnd(9)} ${String(cities.filter((c) => c.traits & bit).length).padStart(6)}`);
+  }
 }
 
 await mkdir(cache, {recursive: true});

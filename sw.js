@@ -4,7 +4,7 @@
 
    Bump VERSION whenever anything in data/ or src/ changes; the old cache is
    thrown away on activate. */
-const VERSION = 'been-there-v1';
+const VERSION = 'been-there-v2';
 
 /* The page and the code are network-first: when you are online you always get
    what the server has, so a redeploy is never masked by a stale cache. The two

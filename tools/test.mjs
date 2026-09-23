@@ -367,6 +367,83 @@ await check('the service worker registers and serves the page offline', async ()
   if (out[0] !== 1) throw new Error('offline reload lost the data: ' + out[0]);
 });
 
+console.log('\nthe roulette');
+await check('it opens with filters and a pool', async () => {
+  await loadFixture();
+  await page.waitForTimeout(400);
+  await page.click('#roulette');
+  await page.waitForTimeout(4000);          // the city list loads on first use
+  eq(await page.textContent('#sheet-title'), 'Where next?', 'sheet title');
+  const chips = await page.$$('.chip-toggle');
+  if (chips.length !== 9) throw new Error('filters: ' + chips.length);
+  const n = Number((await page.textContent('.roul-count')).replace(/[^0-9]/g, ''));
+  if (n < 1000) throw new Error('pool is only ' + n);
+});
+await check('filters only ever narrow the pool', async () => {
+  const count = async () => Number((await page.textContent('.roul-count')).replace(/[^0-9]/g, ''));
+  let last = await count();
+  for (const chip of ['Coast', 'Tropical', 'Small towns']) {
+    await page.click(`.chip-toggle:has-text("${chip}")`);
+    await page.waitForTimeout(300);
+    const now = await count();
+    if (now > last) throw new Error(`adding ${chip} grew the pool ${last} -> ${now}`);
+    last = now;
+  }
+  if (!last) throw new Error('nothing left to spin');
+});
+await check('every spin honours the filters', async () => {
+  for (let i = 0; i < 6; i++) {
+    await page.click('.sheet-actions .btn.primary');
+    await page.waitForTimeout(1200);
+    const tags = await page.$$eval('.slot .chip-tag', (n) => n.map((x) => x.textContent));
+    for (const want of ['Coast', 'Tropical', 'Small towns']) {
+      if (!tags.includes(want)) {
+        throw new Error(await page.textContent('.result h3') + ' is not ' + want + ': ' + tags);
+      }
+    }
+  }
+});
+await check('it never suggests a country you have been to', async () => {
+  // The fixture has Japan, Norway, Iceland, Great Britain and Australia in it.
+  for (const chip of ['Coast', 'Tropical', 'Small towns']) {
+    await page.click(`.chip-toggle:has-text("${chip}")`);
+    await page.waitForTimeout(200);
+  }
+  await page.waitForTimeout(300);
+  const been = await page.evaluate(() => {
+    const eff = window.Store.effective();
+    return Object.keys(eff.countries).filter((k) => window.Store.rank(eff.countries[k]) >= 3);
+  });
+  for (let i = 0; i < 10; i++) {
+    await page.click('.sheet-actions .btn.primary');
+    await page.waitForTimeout(1100);
+    const where = await page.textContent('.result .eyebrow');
+    const sub = await page.textContent('.result-sub');
+    if (!/never been to/.test(sub)) throw new Error('suggested somewhere already visited: ' + where);
+  }
+  if (!been.length) throw new Error('fixture had no visited countries to exclude');
+});
+await check('a suggestion can be added to want to go', async () => {
+  const before = await page.evaluate(() => Object.keys(window.Store.cities()).length);
+  await page.click('.result-actions .btn:not([disabled])');
+  await page.waitForTimeout(600);
+  const added = await page.evaluate(() => {
+    const all = Object.values(window.Store.cities());
+    return all.filter((c) => c.status === 'wishlist').length;
+  });
+  if (!added) throw new Error('nothing was added');
+  const after = await page.evaluate(() => Object.keys(window.Store.cities()).length);
+  if (after !== before + 1) throw new Error('added ' + (after - before));
+  // and the country it is in now reads as somewhere you want to go
+  const wish = await page.evaluate(() => {
+    const c = Object.values(window.Store.cities()).find((x) => x.status === 'wishlist');
+    return window.Store.effective().countries[c.country];
+  });
+  eq(wish, 'wishlist', 'the country');
+  await page.click('.sheet-actions .btn:has-text("Close")');
+  await page.waitForTimeout(400);
+});
+
 console.log('\non a phone');
 await check('the map gets the whole stage and the panel becomes a sheet', async () => {
   const ctx = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

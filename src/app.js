@@ -193,7 +193,7 @@
         h('p', {text: 'Click anywhere on the map, or search, to set what a country, region or city was to you.'}),
         h('div', {class: 'inline-actions'}, [
           h('button', {class: 'btn', type: 'button', onclick: openChecklist, text: 'Open the checklist'}),
-          h('button', {class: 'btn', type: 'button', onclick: armPin, text: 'Drop a pin'})
+          h('button', {class: 'btn', type: 'button', onclick: openRoulette, text: 'Where next?'})
         ])
       ]);
     }
@@ -206,7 +206,8 @@
         h('li', {text: 'Add cities for the detail. A city lights up its region and country by itself.'})
       ]),
       h('div', {class: 'inline-actions'}, [
-        h('button', {class: 'btn primary', type: 'button', onclick: openChecklist, text: 'Open the checklist'})
+        h('button', {class: 'btn primary', type: 'button', onclick: openChecklist, text: 'Open the checklist'}),
+        h('button', {class: 'btn', type: 'button', onclick: openRoulette, text: 'Where next?'})
       ])
     ]);
   }
@@ -833,6 +834,28 @@
     }
   }
 
+  // ---- roulette ----------------------------------------------------------
+
+  var loadingNote = null;
+
+  function openRoulette() {
+    window.Roulette.open({
+      sheet: openSheet,
+      close: closeSheet,
+      toast: toast,
+      select: function (target) { select(target, true); },
+      loading: function (on) {
+        if (on && !loadingNote) {
+          loadingNote = h('div', {class: 'loading', text: 'Loading places…'});
+          el.wrap.appendChild(loadingNote);
+        } else if (!on && loadingNote) {
+          loadingNote.remove();
+          loadingNote = null;
+        }
+      }
+    });
+  }
+
   // ---- sheet -------------------------------------------------------------
 
   function openSheet(title, body, actions) {
@@ -1137,6 +1160,7 @@
   $('zoom-out').addEventListener('click', function () { map.zoomAt(1 / 1.6, map.width / 2, map.visibleCenterY()); });
   $('zoom-reset').addEventListener('click', function () { map.reset(); });
   $('pin-drop').addEventListener('click', armPin);
+  $('roulette').addEventListener('click', openRoulette);
   $('theme').addEventListener('click', toggleTheme);
   el.listToggle.addEventListener('click', openChecklist);
   el.sumToggle.addEventListener('click', openSummary);
