@@ -633,7 +633,8 @@
     if (view !== 'summary') return;
     window.Summary.render(el.summary, {
       close: function () { show('map'); },
-      open: function (target) { show('map'); select(target, true); }
+      open: function (target) { show('map'); select(target, true); },
+      saveCard: window.Card ? saveCard : null
     });
   }
 
@@ -994,6 +995,8 @@
           toast('Cleared');
         }})
       ]);
+    } else if (act === 'card') {
+      saveCard();
     } else if (act === 'seed') {
       offerSeed(true);
     } else if (act === 'counting') {
@@ -1085,6 +1088,17 @@
         Store.fromJSON({data: seed}, 'merge'); closeSheet(); toast('Merged ' + counts);
       }})
     ]);
+  }
+
+  /* The picture wants the distance on it, and that lives in the summary's
+     arithmetic, so ask for it rather than working it out twice. */
+  function saveCard() {
+    if (!window.Card) { toast('The picture needs card.js, which did not load.'); return; }
+    if (Store.isEmpty()) { toast('Colour something in first.'); return; }
+    var km = window.Summary && window.Summary.distanceKm ? window.Summary.distanceKm() : 0;
+    window.Card.save({km: km}, function (err) {
+      toast(err ? err.message : 'Picture saved to your downloads');
+    });
   }
 
   // ---- theme -------------------------------------------------------------

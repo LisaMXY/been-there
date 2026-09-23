@@ -89,6 +89,18 @@ geography can vouch for. Anything sitting within 45 km of a place four times its
 size is somebody else's suburb and is left out, because "Eimsbüttel, Germany" is
 really a suggestion of Hamburg.
 
+## Badges and a picture
+
+Sixteen badges, each earned by something you can check rather than an explorer
+level: *20 new countries in 2017*, *11 of 47 in Japan*, *Sydney and Donostia,
+17,473 km apart*. Unearned ones show the shortfall in their own units, so they
+read as a target rather than a scolding.
+
+**Data → Save a picture** draws a 1200×1200 PNG of your map with the headline
+numbers and a key, in whichever theme you are using, and puts it in your
+downloads. Nothing is uploaded: the image is drawn on a canvas in your browser
+and handed straight to you.
+
 ## Watching it fill in
 
 The ⟳ button on the map plays your travels back a year at a time, from the first
@@ -213,7 +225,7 @@ npx playwright install chromium
 npm test
 ```
 
-Forty-two checks against the real page in a real browser: a fresh browser
+Forty-six checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions
@@ -243,6 +255,8 @@ src/app.js          panel, checklist, search, import/export
 src/styles.css
 src/summary.js      the totals and the charts
 src/roulette.js     where next, and the filters
+src/badges.js       what your data has earned
+src/card.js         the shareable picture
 vendor/geo.js       d3-geo + topojson-client, bundled (33 KB)
 data/*.js           the maps, borders, the city list and your trips, pre-built
 sw.js               offline for the hosted copy

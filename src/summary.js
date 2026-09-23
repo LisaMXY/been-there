@@ -387,6 +387,8 @@
     root.appendChild(h('div', {class: 'checklist-head'}, [
       h('h2', {text: 'The arithmetic'}),
       h('p', {text: 'Everything below counts a place from the moment you marked it Visited or Lived there.'}),
+      api.saveCard ? h('button', {class: 'btn', type: 'button', text: 'Save a picture',
+        onclick: api.saveCard}) : null,
       h('button', {class: 'btn', type: 'button', text: 'Back to the map', onclick: api.close})
     ]));
 
@@ -611,5 +613,11 @@
     ]);
   }
 
-  window.Summary = {render: render};
+  function distanceKm() {
+    var d = collect();
+    var far = distance(d.cities);
+    return far ? far.km : 0;
+  }
+
+  window.Summary = {render: render, distanceKm: distanceKm};
 })();

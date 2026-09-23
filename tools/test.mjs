@@ -432,6 +432,52 @@ await check('the service worker registers and serves the page offline', async ()
   if (out[0] !== 1) throw new Error('offline reload lost the data: ' + out[0]);
 });
 
+console.log('\nthe picture');
+await check('it draws a card that is not a blank rectangle', async () => {
+  await loadFixture();
+  await page.waitForTimeout(400);
+  const out = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    window.Card.draw(c, {km: window.Summary.distanceKm()});
+    const ctx = c.getContext('2d');
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    // Count distinct colours, thinly sampled: a blank card has one or two.
+    const seen = {};
+    for (let i = 0; i < d.length; i += 4 * 997) {
+      seen[d[i] + ',' + d[i + 1] + ',' + d[i + 2]] = 1;
+    }
+    return {w: c.width, h: c.height, colours: Object.keys(seen).length};
+  });
+  eq(out.w, 1200, 'card width');
+  eq(out.h, 1200, 'card height');
+  if (out.colours < 5) throw new Error('the card is nearly blank: ' + out.colours + ' colours');
+});
+await check('the card follows the theme', async () => {
+  const shot = () => page.evaluate(() => {
+    const c = document.createElement('canvas');
+    window.Card.draw(c, {});
+    const d = c.getContext('2d').getImageData(4, 4, 1, 1).data;
+    return d[0] + ',' + d[1] + ',' + d[2];
+  });
+  const light = await shot();
+  await page.click('#theme');
+  await page.waitForTimeout(400);
+  const dark = await shot();
+  await page.click('#theme');
+  await page.waitForTimeout(400);
+  if (light === dark) throw new Error('both themes drew the same background: ' + light);
+});
+await check('the menu hands you a png', async () => {
+  const wait = page.waitForEvent('download', {timeout: 20000});
+  await page.click('#menu-btn');
+  await page.waitForTimeout(250);
+  await page.click('[data-act=card]');
+  const file = await wait;
+  if (!/^been-there-\d{4}-\d{2}-\d{2}\.png$/.test(file.suggestedFilename())) {
+    throw new Error('odd filename: ' + file.suggestedFilename());
+  }
+});
+
 console.log('\nthe replay');
 await check('it winds the map back and fills it in again', async () => {
   await loadFixture();
