@@ -242,6 +242,83 @@
     return totals;
   }
 
+  var EARTH_R = 6371;
+  var rad = function (d) { return (d * Math.PI) / 180; };
+
+  function greatCircle(a, b) {
+    var dLat = rad(b.lat - a.lat);
+    var dLon = rad(b.lon - a.lon);
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  /* How far the pins add up to. Ordering matters enormously - the same 89 pins
+     come to 82,000 km in a sensible order and 519,000 in a random one - so the
+     order is fixed and defensible rather than arbitrary: chronological by the
+     year you first got there, and within a year always the nearest place next,
+     which is roughly how a trip actually goes. It is a floor, not a total: it
+     has no idea you flew home in between. */
+  function distance(cities) {
+    var dated = cities.filter(function (c) { return c.first && isFinite(c.lon) && isFinite(c.lat); });
+    if (dated.length < 2) return null;
+
+    var years = [];
+    dated.forEach(function (c) { if (years.indexOf(c.first) === -1) years.push(c.first); });
+    years.sort(function (a, b) { return a - b; });
+
+    var km = 0;
+    var prev = null;
+    var hops = 0;
+    years.forEach(function (y) {
+      var pool = dated.filter(function (c) { return c.first === y; });
+      if (!prev) pool.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      while (pool.length) {
+        var pick = 0;
+        if (prev) {
+          var best = Infinity;
+          pool.forEach(function (c, i) {
+            var d = greatCircle(prev, c);
+            if (d < best) { best = d; pick = i; }
+          });
+        }
+        var next = pool.splice(pick, 1)[0];
+        if (prev) { km += greatCircle(prev, next); hops++; }
+        prev = next;
+      }
+    });
+    return {km: km, hops: hops, places: dated.length, undated: cities.length - dated.length};
+  }
+
+  var YARDSTICKS = [
+    {km: 40075, one: 'once round the equator', many: 'times round the equator'},
+    {km: 384400, one: 'the distance to the Moon', many: 'trips to the Moon'}
+  ];
+
+  function farBlock(d) {
+    var laps = d.km / YARDSTICKS[0].km;
+    var moon = d.km / YARDSTICKS[1].km;
+    var lines = [];
+    lines.push(laps >= 1
+      ? laps.toFixed(1) + ' times round the equator'
+      : Math.round(laps * 100) + '% of the way round the equator');
+    lines.push(moon >= 1
+      ? moon.toFixed(1) + ' trips to the Moon'
+      : Math.round(moon * 100) + '% of the way to the Moon');
+
+    return h('div', {class: 'far'}, [
+      h('div', {class: 'far-figure'}, [
+        h('b', {text: Math.round(d.km).toLocaleString()}),
+        h('span', {text: 'km'})
+      ]),
+      h('ul', {class: 'far-list'}, lines.map(function (t) { return h('li', {text: t}); })),
+      h('p', {class: 'far-note', text: 'Each place counted once, in the order you first reached ' +
+        'it, taking the nearest one next within each year — ' + d.hops.toLocaleString() +
+        ' hops between ' + d.places + ' places. A floor, not a total: it has no idea you flew ' +
+        'home in between.' + (d.undated ? ' ' + d.undated + ' pins have no year and sit this out.' : '')})
+    ]);
+  }
+
   function extremes(cities) {
     if (!cities.length) return null;
     var pick = function (fn) {
@@ -327,6 +404,9 @@
           tip: function (r) { return '<span>' + (r.value || 'no') + ' new ' + (r.value === 1 ? 'city' : 'cities') + '</span>'; }
         })));
     }
+
+    var far = distance(d.cities);
+    if (far) root.appendChild(section('How far that is', null, farBlock(far)));
 
     // continents
     var totals = continentTotals();

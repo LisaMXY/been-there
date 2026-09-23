@@ -278,6 +278,25 @@ await check('the summary renders its charts and its table', async () => {
   if (!(await page.$$('.ledger tbody tr')).length) throw new Error('no table rows');
   if ((await page.$$('.fact')).length < 7) throw new Error('facts missing');
 });
+await check('the distance travelled is computed and stable', async () => {
+  const read = async () => {
+    const t = await page.textContent('.far-figure b');
+    return Number(t.replace(/[^0-9]/g, ''));
+  };
+  const km = await read();
+  if (!km) throw new Error('no distance shown');
+  // Ordering is what makes this number mean anything, so it must not wobble.
+  await page.click('#sum-toggle');
+  await page.waitForTimeout(300);
+  await page.click('#sum-toggle');
+  await page.waitForTimeout(700);
+  eq(await read(), km, 'distance on a re-render');
+  const lines = await page.$$eval('.far-list li', (n) => n.map((x) => x.textContent));
+  if (!lines.some((l) => /equator/.test(l))) throw new Error('no yardstick: ' + lines);
+  if (!/floor, not a total/.test(await page.textContent('.far-note'))) {
+    throw new Error('the estimate does not say what it is');
+  }
+});
 await check('a table row jumps to that country', async () => {
   await page.click('.ledger tbody tr >> nth=0');
   await page.waitForTimeout(800);
