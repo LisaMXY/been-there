@@ -500,6 +500,19 @@ await check('a backup older than a month is flagged again', async () => {
   await page.evaluate(() => window.Store.markExported());
   await page.waitForTimeout(300);
 });
+await check('every script the page loads is precached', async () => {
+  // src/roulette.js was missing from the list for four commits: the fetch
+  // handler cached it on first use, so nothing broke until you installed the
+  // app and went offline before ever opening the roulette.
+  const {readFile: read} = await import('node:fs/promises');
+  const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const html = await read(path.join(repo, 'index.html'), 'utf8');
+  const sw = await read(path.join(repo, 'sw.js'), 'utf8');
+  const wanted = [...html.matchAll(/src="([^"]+)"/g)].map((m) => m[1])
+    .concat([...html.matchAll(/href="(src\/[^"]+|manifest[^"]*)"/g)].map((m) => m[1]));
+  const missing = wanted.filter((f) => !sw.includes("'" + f + "'"));
+  if (missing.length) throw new Error('not precached: ' + missing.join(', '));
+});
 await check('the manifest is installable', async () => {
   const href = await page.getAttribute('link[rel=manifest]', 'href');
   const res = await page.request.get(base + '/' + href);

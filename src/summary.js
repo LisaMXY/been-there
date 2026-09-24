@@ -430,7 +430,7 @@
         document.createTextNode(farNote(d)),
         api && api.setHome ? h('button', {
           class: 'link', type: 'button', onclick: api.setHome,
-          text: d.homes ? 'Change where you set off from' : 'Tell it where you set off from'
+          text: d.trips || d.homes ? 'Edit trips and home bases' : 'Set up trips and where you set off from'
         }) : null
       ])
     ]);
