@@ -318,6 +318,16 @@ await check('neighbours are found, and never somewhere already visited', async (
   if (leaked.length) throw new Error('suggests somewhere already visited: ' + leaked.join(', '));
   if (!/borders /.test(rows[0].from)) throw new Error('no neighbour names shown');
 });
+await check('the distance and badges come before the charts', async () => {
+  // They were a page and a half down and nobody found them.
+  const order = await page.$$eval('.sum-section > h3', (n) => n.map((x) => x.textContent));
+  const far = order.indexOf('How far that is');
+  const badges = order.indexOf('Badges');
+  const chart = order.findIndex((t) => /by year|running total/.test(t));
+  if (far < 0 || badges < 0) throw new Error('missing sections: ' + order.join(' | '));
+  if (chart > -1 && badges > chart) throw new Error('badges are buried below the charts');
+  if (far > badges) throw new Error('distance should lead');
+});
 await check('badges are earned by the data, and say what they counted', async () => {
   const badges = await page.$$eval('.badge', (n) => n.map((x) => ({
     got: x.classList.contains('got'),

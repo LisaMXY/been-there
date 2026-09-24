@@ -408,6 +408,28 @@
     });
     root.appendChild(hero);
 
+    var far = distance(d.cities);
+    if (far) root.appendChild(section('How far that is', null, farBlock(far)));
+
+    // badges
+    var badges = window.Badges ? window.Badges.evaluate(far ? far.km : 0) : [];
+    if (badges.length) {
+      var got = badges.filter(function (b) { return b.earned; });
+      var next = badges.filter(function (b) { return !b.earned; })
+        .sort(function (a, b) { return (b.have / b.need) - (a.have / a.need); });
+
+      var grid = h('div', {class: 'badges'});
+      got.concat(next.slice(0, 6)).forEach(function (b) {
+        grid.appendChild(h('div', {class: 'badge' + (b.earned ? ' got' : '')}, [
+          h('b', {text: b.title}),
+          h('span', {text: b.earned ? b.note : shortfall(b)})
+        ]));
+      });
+      root.appendChild(section('Badges',
+        got.length + ' of ' + badges.length + ' earned. Each one counts something you can check.',
+        grid));
+    }
+
     // timeline
     if (d.years.length > 1) {
       var running = 0;
@@ -437,28 +459,6 @@
           label: 'New cities each year',
           tip: function (r) { return '<span>' + (r.value || 'no') + ' new ' + (r.value === 1 ? 'city' : 'cities') + '</span>'; }
         })));
-    }
-
-    var far = distance(d.cities);
-    if (far) root.appendChild(section('How far that is', null, farBlock(far)));
-
-    // badges
-    var badges = window.Badges ? window.Badges.evaluate(far ? far.km : 0) : [];
-    if (badges.length) {
-      var got = badges.filter(function (b) { return b.earned; });
-      var next = badges.filter(function (b) { return !b.earned; })
-        .sort(function (a, b) { return (b.have / b.need) - (a.have / a.need); });
-
-      var grid = h('div', {class: 'badges'});
-      got.concat(next.slice(0, 6)).forEach(function (b) {
-        grid.appendChild(h('div', {class: 'badge' + (b.earned ? ' got' : '')}, [
-          h('b', {text: b.title}),
-          h('span', {text: b.earned ? b.note : shortfall(b)})
-        ]));
-      });
-      root.appendChild(section('Badges',
-        got.length + ' of ' + badges.length + ' earned. Each one counts something you can check.',
-        grid));
     }
 
     // continents

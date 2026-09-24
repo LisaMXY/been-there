@@ -225,7 +225,7 @@ npx playwright install chromium
 npm test
 ```
 
-Forty-six checks against the real page in a real browser: a fresh browser
+Forty-seven checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions
