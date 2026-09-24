@@ -4,7 +4,7 @@
 
    Bump VERSION whenever anything in data/ or src/ changes; the old cache is
    thrown away on activate. */
-const VERSION = 'been-there-v4';
+const VERSION = 'been-there-v6';
 
 /* The page and the code are network-first: when you are online you always get
    what the server has, so a redeploy is never masked by a stale cache. The two
@@ -20,6 +20,7 @@ const PRECACHE = [
   'src/atlas.js',
   'src/badges.js',
   'src/card.js',
+  'src/trips.js',
   'src/summary.js',
   'src/app.js',
   'vendor/geo.js',

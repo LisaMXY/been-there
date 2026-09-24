@@ -24,7 +24,7 @@
     return {
       version: VERSION,
       updated: null,
-      settings: {countStopovers: false, theme: null, lastExport: null, firstSaved: null},
+      settings: {countStopovers: false, theme: null, lastExport: null, firstSaved: null, homes: []},
       countries: {},
       regions: {},
       cities: {}
@@ -73,6 +73,15 @@
       return isFinite(n) && n >= 1000 && n <= 3000 ? Math.round(n) : undefined;
     };
     var known = function (v) { return BY_ID[v] ? v : undefined; };
+    // Home periods are year-months, so a spell living abroad can start and end
+    // mid-year; a bare year is accepted and read as the whole of it.
+    var stamp = function (v) {
+      var n = Number(v);
+      if (!isFinite(n)) return null;
+      if (n >= 100001 && n <= 300012) return Math.round(n);
+      if (n >= 1000 && n <= 3000) return Math.round(n) * 100 + 1;
+      return null;
+    };
 
     var place = function (raw) {
       if (!raw || typeof raw !== 'object') return null;
@@ -106,6 +115,7 @@
         kept.lon = lon;
         kept.lat = lat;
         kept.cc = str(raw.cc, 2) || null;
+        kept.trip = str(raw.trip, 40) || undefined;
         kept.country = str(raw.country, 10) || null;
         kept.region = str(raw.region, 20) || null;
         if (raw.custom) kept.custom = true;
@@ -119,6 +129,33 @@
         ? parsed.settings.theme : null;
       fresh.settings.lastExport = str(parsed.settings.lastExport, 40) || null;
       fresh.settings.firstSaved = str(parsed.settings.firstSaved, 40) || null;
+      if (parsed.settings.trips && typeof parsed.settings.trips === 'object') {
+        var trips = {};
+        Object.keys(parsed.settings.trips).forEach(function (id) {
+          var t = parsed.settings.trips[id];
+          var when = t && Number(t.ym);
+          if (str(id, 40) && isFinite(when) && when > 100000) {
+            trips[id] = {ym: when};
+            if (str(t.name, 120)) trips[id].name = str(t.name, 120);
+          }
+        });
+        fresh.settings.trips = trips;
+      }
+      if (Array.isArray(parsed.settings.homes)) {
+        fresh.settings.homes = parsed.settings.homes.map(function (home) {
+          if (!home || typeof home !== 'object') return null;
+          var lon = Number(home.lon);
+          var lat = Number(home.lat);
+          if (!str(home.name, 200) || !isFinite(lon) || !isFinite(lat)) return null;
+          if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+          return {
+            name: str(home.name, 200), lon: lon, lat: lat,
+            country: str(home.country, 10) || null,
+            region: str(home.region, 20) || null,
+            from: stamp(home.from), to: stamp(home.to)
+          };
+        }).filter(Boolean);
+      }
     }
     fresh.updated = str(parsed.updated, 40) || null;
     return fresh;
@@ -354,6 +391,42 @@
     changed('settings');
   }
 
+  /* Where you set off from at a given moment, as YYYYMM (a bare year is read as
+     January). A dated spell wins over an open-ended home, so "Singapore, always"
+     and "Linkoping, early 2017 to mid 2018" sit side by side and the right one
+     applies to each trip. */
+  function homeFor(when) {
+    var at = asMonth(when, 1);
+    if (at === null) return null;
+    var homes = data.settings.homes || [];
+    var open = null;
+    for (var i = 0; i < homes.length; i++) {
+      var home = homes[i];
+      if (home.from || home.to) {
+        // Both ends normalise too: the dialog's year boxes give a bare 2017,
+        // and 201703 is not "less than or equal to" 2017.
+        var from = asMonth(home.from, 1);
+        var to = asMonth(home.to, 12);
+        if ((from === null || at >= from) && (to === null || at <= to)) return home;
+      } else if (!open) {
+        open = home;
+      }
+    }
+    return open;
+  }
+
+  /* A year-month as YYYYMM. A bare year becomes January or December depending
+     on which end of a range it is. */
+  function asMonth(v, monthIfYear) {
+    var n = Number(v);
+    if (!isFinite(n) || !n) return null;
+    if (n >= 100001 && n <= 300012) return Math.round(n);
+    if (n >= 1000 && n <= 3000) return Math.round(n) * 100 + monthIfYear;
+    return null;
+  }
+
+  function trips() { return data.settings.trips || {}; }
+
   // ---- totals ------------------------------------------------------------
 
   /* With a year, the totals are as they stood at the end of it, so the header
@@ -508,6 +581,9 @@
     raw: function () { return data; },
     settings: function () { return data.settings; },
     setSetting: setSetting,
+    homes: function () { return (data.settings.homes || []).slice(); },
+    homeFor: homeFor,
+    trips: trips,
     entry: entry,
     statusOf: statusOf,
     effective: effective,

@@ -1122,3 +1122,48 @@ a { color: var(--accent); }
 .badge b { display: block; font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
 .badge span { display: block; margin-top: 3px; font-size: 12.5px; color: var(--ink-3); }
 .badge.got span { color: var(--ink-2); }
+
+/* ---------- home base ---------- */
+
+.home-search {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  background: var(--plane);
+}
+.far-note .link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- trips ---------- */
+
+.trips { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.trip {
+  padding: 11px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.trip.loose { border-style: dashed; }
+.trip-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.trip-when {
+  width: 8ch;
+  padding: 4px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  background: var(--plane);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.trip-when:disabled { opacity: .5; }
+.trip-count { font-size: 12.5px; color: var(--ink-3); }
+.trip-places { margin: 7px 0 0; font-size: 13.5px; line-height: 1.45; }
+.trip .inline-actions .btn { font-size: 12.5px; padding: 5px 9px; }

@@ -634,7 +634,8 @@
     window.Summary.render(el.summary, {
       close: function () { show('map'); },
       open: function (target) { show('map'); select(target, true); },
-      saveCard: window.Card ? saveCard : null
+      saveCard: window.Card ? saveCard : null,
+      setHome: openTrips
     });
   }
 
@@ -841,6 +842,108 @@
     }
   }
 
+  /* Where you set off from. Without it the distance assumes you wandered from
+     Japan straight to Thailand; with it, each year goes out and back, which is
+     what the flights actually did. A range lets a stint living somewhere else
+     be its own base for those years. */
+  function openHome(after) {
+    withCities(function () {
+      var search = h('input', {type: 'search', class: 'home-search',
+        placeholder: 'Search for the place you set off from', autocomplete: 'off'});
+      var results = h('ul', {class: 'rows scroller'});
+      // Month precision matters: a spell living abroad starts and ends mid-year,
+      // and the trips either side of it set off from different places.
+      var from = h('input', {type: 'text', placeholder: 'YYYY-MM', size: 8});
+      var to = h('input', {type: 'text', placeholder: 'YYYY-MM', size: 8});
+      var picked = null;
+
+      function paint() {
+        var term = search.value.trim().toLowerCase();
+        results.textContent = '';
+        if (term.length < 2) return;
+        var w = window.TM_CITIES;
+        var col = {};
+        w.columns.forEach(function (c, i) { col[c] = i; });
+        var hits = [];
+        for (var i = 0; i < w.rows.length && hits.length < 400; i++) {
+          if (w.rows[i][col.name].toLowerCase().indexOf(term) === 0) hits.push(w.rows[i]);
+        }
+        hits.sort(function (a, b) { return b[col.pop] - a[col.pop]; });
+        hits.slice(0, 8).forEach(function (r) {
+          var owner = r[col.country] ? Atlas.index.country[r[col.country]] : null;
+          results.appendChild(h('li', {}, [
+            h('button', {class: 'cycle', type: 'button', onclick: function () {
+              picked = {name: r[col.name], lon: r[col.lon], lat: r[col.lat],
+                country: r[col.country], region: r[col.region]};
+              search.value = r[col.name];
+              results.textContent = '';
+            }}, [
+              h('span', {class: 'name', text: r[col.name]}),
+              h('span', {class: 'note', text: owner ? owner.name : r[col.cc] || ''})
+            ])
+          ]));
+        });
+      }
+      search.addEventListener('input', function () { picked = null; paint(); });
+
+      var alsoLived = h('input', {type: 'checkbox'});
+      alsoLived.checked = true;
+
+      openSheet('Where you set off from', [
+        h('p', {text: 'Leave the dates blank for "always". Fill them in for a spell living ' +
+          'somewhere else — a month is enough, and the trips either side keep the other base.'}),
+        search,
+        results,
+        h('div', {class: 'fields', style: 'margin-top:10px'}, [
+          h('div', {class: 'field'}, [h('label', {text: 'From (optional)'}), from]),
+          h('div', {class: 'field'}, [h('label', {text: 'To (optional)'}), to])
+        ]),
+        h('label', {class: 'roul-check', style: 'margin-top:12px'}, [
+          alsoLived, h('span', {text: 'Also mark it on the map as somewhere you lived'})
+        ])
+      ], [
+        h('button', {class: 'btn', type: 'button', text: 'Cancel', onclick: function () {
+          closeSheet();
+          if (after) after();
+        }}),
+        h('button', {class: 'btn primary', type: 'button', text: 'Add', onclick: function () {
+          if (!picked) { toast('Pick a place from the list first.'); return; }
+          var next = Store.homes();
+          next.push({
+            name: picked.name, lon: picked.lon, lat: picked.lat,
+            country: picked.country, region: picked.region,
+            from: window.Trips.fromInput(from.value), to: window.Trips.fromInput(to.value)
+          });
+          Store.setSetting('homes', next);
+          if (alsoLived.checked && picked.country) Store.set('country', picked.country, 'lived');
+          closeSheet();
+          toast(picked.name + ' set as where you set off from');
+          if (after) after();
+        }})
+      ]);
+      search.focus();
+    });
+  }
+
+  function openTrips() {
+    if (!window.Trips) { toast('The trips editor did not load.'); return; }
+    window.Trips.open({
+      sheet: openSheet,
+      close: closeSheet,
+      toast: toast,
+      addHome: openHome,
+      loading: function (on) {
+        if (on && !loadingNote) {
+          loadingNote = h('div', {class: 'loading', text: 'Loading places…'});
+          el.wrap.appendChild(loadingNote);
+        } else if (!on && loadingNote) {
+          loadingNote.remove();
+          loadingNote = null;
+        }
+      }
+    });
+  }
+
   // ---- the replay --------------------------------------------------------
 
   /* Watch the map fill in, a year at a time. It reads the same statuses the map
@@ -995,6 +1098,8 @@
           toast('Cleared');
         }})
       ]);
+    } else if (act === 'home') {
+      openTrips();
     } else if (act === 'card') {
       saveCard();
     } else if (act === 'seed') {

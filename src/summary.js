@@ -285,26 +285,45 @@
     return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
-  /* How far the pins add up to. Ordering matters enormously - the same 89 pins
-     come to 82,000 km in a sensible order and 519,000 in a random one - so the
-     order is fixed and defensible rather than arbitrary: chronological by the
-     year you first got there, and within a year always the nearest place next,
-     which is roughly how a trip actually goes. It is a floor, not a total: it
-     has no idea you flew home in between. */
+  /* How far the pins add up to.
+
+     A trip is the unit that matters, not a year: you flew out, went round, and
+     came home. Where the data knows its trips, each one is a loop from wherever
+     you set off from, through its places nearest-first, and back. Moving home
+     between trips counts as its own leg.
+
+     Without trips it falls back to grouping by year, and without a home it is a
+     single continuous path - a floor rather than a total, and the note says so.
+     The order is fixed either way, because the same pins come to 82,000 km
+     chained sensibly and 519,000 in a random order. */
   function distance(cities) {
     var dated = cities.filter(function (c) { return c.first && isFinite(c.lon) && isFinite(c.lat); });
     if (dated.length < 2) return null;
 
-    var years = [];
-    dated.forEach(function (c) { if (years.indexOf(c.first) === -1) years.push(c.first); });
-    years.sort(function (a, b) { return a - b; });
+    var tripMeta = Store.trips();
+    var grouped = groupIntoTrips(dated, tripMeta);
+    var anyHome = Store.homes().length > 0;
 
     var km = 0;
+    var legs = 0;
     var prev = null;
-    var hops = 0;
-    years.forEach(function (y) {
-      var pool = dated.filter(function (c) { return c.first === y; });
-      if (!prev) pool.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var lastHome = null;
+
+    grouped.forEach(function (leg) {
+      var pool = leg.places.slice();
+      var home = anyHome ? Store.homeFor(leg.when) : null;
+
+      if (home) {
+        if (lastHome && (lastHome.lon !== home.lon || lastHome.lat !== home.lat)) {
+          km += greatCircle(lastHome, home);
+          legs++;
+        }
+        lastHome = home;
+        prev = home;
+      } else if (!prev) {
+        pool.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      }
+
       while (pool.length) {
         var pick = 0;
         if (prev) {
@@ -315,11 +334,50 @@
           });
         }
         var next = pool.splice(pick, 1)[0];
-        if (prev) { km += greatCircle(prev, next); hops++; }
+        if (prev) { km += greatCircle(prev, next); legs++; }
         prev = next;
       }
+
+      if (home && prev) { km += greatCircle(prev, home); legs++; prev = home; }
     });
-    return {km: km, hops: hops, places: dated.length, undated: cities.length - dated.length};
+
+    return {
+      km: km, hops: legs, places: dated.length,
+      undated: cities.length - dated.length,
+      trips: grouped.byTrip ? grouped.length : 0,
+      home: anyHome ? Store.homeFor(grouped[grouped.length - 1].when) : null,
+      homes: Store.homes().length
+    };
+  }
+
+  /* Trips where the data has them, years where it does not. Either way the
+     result is a list of legs in order, each with a date so the right home
+     applies. */
+  function groupIntoTrips(dated, tripMeta) {
+    var withTrip = dated.filter(function (c) { return c.trip && tripMeta[c.trip]; });
+    var out;
+
+    if (withTrip.length === dated.length && withTrip.length) {
+      var byId = {};
+      dated.forEach(function (c) {
+        if (!byId[c.trip]) byId[c.trip] = {when: tripMeta[c.trip].ym, places: []};
+        byId[c.trip].places.push(c);
+      });
+      out = Object.keys(byId).map(function (k) { return byId[k]; })
+        .sort(function (a, b) { return a.when - b.when; });
+      out.byTrip = true;
+      return out;
+    }
+
+    var byYear = {};
+    dated.forEach(function (c) {
+      if (!byYear[c.first]) byYear[c.first] = {when: c.first * 100 + 1, places: []};
+      byYear[c.first].places.push(c);
+    });
+    out = Object.keys(byYear).map(function (k) { return byYear[k]; })
+      .sort(function (a, b) { return a.when - b.when; });
+    out.byTrip = false;
+    return out;
   }
 
   var YARDSTICKS = [
@@ -327,7 +385,31 @@
     {km: 384400, one: 'the distance to the Moon', many: 'trips to the Moon'}
   ];
 
-  function farBlock(d) {
+  function farNote(d) {
+    var text;
+    if (d.trips && d.homes) {
+      text = d.trips + ' trips, each one out from home and back through its places — ' +
+        d.hops.toLocaleString() + ' legs across ' + d.places + ' places' +
+        (d.homes > 1 ? ', through ' + d.homes + ' home bases' : ', from ' +
+          (d.home ? d.home.name : 'home')) +
+        '. Within a trip it takes the nearest place next, which is the one guess left.';
+    } else if (d.homes) {
+      text = 'Out from home and back once a year, taking the nearest place next in between — ' +
+        d.hops.toLocaleString() + ' legs across ' + d.places + ' places' +
+        (d.homes > 1 ? ', through ' + d.homes + ' home bases' : ', from ' +
+          (d.home ? d.home.name : 'home')) +
+        '. Grouped by year rather than by trip, so a year of several separate trips is ' +
+        'undercounted.';
+    } else {
+      text = 'Each place counted once, in the order you first reached it, taking the nearest ' +
+        'one next within each year — ' + d.hops.toLocaleString() + ' hops between ' + d.places +
+        ' places. A floor, not a total: it has no idea you flew home in between.';
+    }
+    if (d.undated) text += ' ' + d.undated + ' pins have no year and sit this out.';
+    return text + ' ';
+  }
+
+  function farBlock(d, api) {
     var laps = d.km / YARDSTICKS[0].km;
     var moon = d.km / YARDSTICKS[1].km;
     var lines = [];
@@ -344,10 +426,13 @@
         h('span', {text: 'km'})
       ]),
       h('ul', {class: 'far-list'}, lines.map(function (t) { return h('li', {text: t}); })),
-      h('p', {class: 'far-note', text: 'Each place counted once, in the order you first reached ' +
-        'it, taking the nearest one next within each year — ' + d.hops.toLocaleString() +
-        ' hops between ' + d.places + ' places. A floor, not a total: it has no idea you flew ' +
-        'home in between.' + (d.undated ? ' ' + d.undated + ' pins have no year and sit this out.' : '')})
+      h('p', {class: 'far-note'}, [
+        document.createTextNode(farNote(d)),
+        api && api.setHome ? h('button', {
+          class: 'link', type: 'button', onclick: api.setHome,
+          text: d.homes ? 'Change where you set off from' : 'Tell it where you set off from'
+        }) : null
+      ])
     ]);
   }
 
@@ -409,7 +494,7 @@
     root.appendChild(hero);
 
     var far = distance(d.cities);
-    if (far) root.appendChild(section('How far that is', null, farBlock(far)));
+    if (far) root.appendChild(section('How far that is', null, farBlock(far, api)));
 
     // badges
     var badges = window.Badges ? window.Badges.evaluate(far ? far.km : 0) : [];

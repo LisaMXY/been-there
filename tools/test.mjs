@@ -97,22 +97,30 @@ await page.goto(base + '/index.html', {waitUntil: 'networkidle'});
 await page.waitForTimeout(2600);
 
 console.log('\ndata');
-await check('a fresh browser starts empty and usable', async () => {
-  const s = await stats();
-  if (s.countries || s.cities) throw new Error('not empty: ' + JSON.stringify(s));
-  if (!(await page.$('.panel .empty-state'))) throw new Error('no empty state in the panel');
+// This copy may carry a local history; start every check from a known state.
+await page.evaluate(() => window.Store.reset());
+await page.waitForTimeout(300);
+await check('a fresh browser comes up usable', async () => {
+  if (!(await page.$('.panel'))) throw new Error('no panel');
+  if (!(await page.$('#map'))) throw new Error('no map');
+  if (await page.evaluate(() => window.Atlas.countries().length) < 200) {
+    throw new Error('the map never loaded');
+  }
 });
-await check('this copy publishes nobody\'s travels', async () => {
-  const res = await page.request.get(base + '/data/travels.js');
-  if (res.ok()) throw new Error('a travel history is bundled with this checkout');
-  await page.click('#menu-btn');
-  await page.waitForTimeout(200);
-  await page.click('[data-act=seed]');
-  await page.waitForTimeout(900);
-  const toast = await page.$('.toast');
-  const text = toast ? await toast.textContent() : '';
-  if (!/No travel history/.test(text)) throw new Error('menu said: ' + text);
-  if ((await stats()).countries) throw new Error('something got loaded anyway');
+await check('a travel history can never be committed by accident', async () => {
+  // The file may well exist locally - that is the point of it - but git has to
+  // be ignoring it, and it must not already be tracked.
+  const {execFileSync} = await import('node:child_process');
+  const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  for (const f of ['data/travels.js', 'tools/travels.txt', 'tools/places.txt']) {
+    const tracked = execFileSync('git', ['ls-files', f], {cwd: repo}).toString().trim();
+    if (tracked) throw new Error(f + ' is tracked by git');
+    let ignored = '';
+    try {
+      ignored = execFileSync('git', ['check-ignore', f], {cwd: repo}).toString().trim();
+    } catch { /* check-ignore exits 1 when it is not ignored */ }
+    if (!ignored) throw new Error(f + ' is not gitignored');
+  }
 });
 await check('a history loads and adds up', async () => {
   await loadFixture();
@@ -278,6 +286,90 @@ await check('the summary renders its charts and its table', async () => {
   if (!(await page.$$('.ledger tbody tr')).length) throw new Error('no table rows');
   if ((await page.$$('.fact')).length < 7) throw new Error('facts missing');
 });
+await check('trips beat years when the data knows them', async () => {
+  const km = () => page.evaluate(() => Math.round(window.Summary.distanceKm()));
+  const home = [{name: 'Singapore', lon: 103.85, lat: 1.29, country: 'SGP', region: null,
+    from: null, to: null}];
+
+  // Same places, same years, but grouped into separate trips: two journeys out
+  // from home cost more than one that strings them together.
+  const asYear = {
+    countries: {JPN: {status: 'visited', first: 2019}, THA: {status: 'visited', first: 2019}},
+    cities: {
+      a: {status: 'visited', name: 'Tokyo', lon: 139.69, lat: 35.69, country: 'JPN', first: 2019},
+      b: {status: 'visited', name: 'Bangkok', lon: 100.5, lat: 13.75, country: 'THA', first: 2019},
+    },
+    settings: {homes: home},
+  };
+  await page.evaluate((d) => window.Store.fromJSON({data: d}, 'replace'), asYear);
+  await page.waitForTimeout(300);
+  const oneTrip = await km();
+
+  const asTrips = JSON.parse(JSON.stringify(asYear));
+  asTrips.cities.a.trip = 't1';
+  asTrips.cities.b.trip = 't2';
+  asTrips.settings.trips = {t1: {ym: 201905}, t2: {ym: 201911}};
+  await page.evaluate((d) => window.Store.fromJSON({data: d}, 'replace'), asTrips);
+  await page.waitForTimeout(300);
+  const twoTrips = await km();
+  eq(await page.evaluate(() => Object.keys(window.Store.trips()).length), 2, 'trips kept');
+  if (twoTrips <= oneTrip) {
+    throw new Error(`two trips should cost more than one: ${oneTrip} -> ${twoTrips}`);
+  }
+  await loadFixture();                       // put the shared state back
+  await page.waitForTimeout(300);
+});
+await check('a home base with months applies to the right trips', async () => {
+  await page.evaluate(() => window.Store.setSetting('homes', [
+    {name: 'Singapore', lon: 103.85, lat: 1.29, country: 'SGP', region: null, from: null, to: null},
+    {name: 'Oslo', lon: 10.75, lat: 59.91, country: 'NOR', region: null, from: 201701, to: 201707},
+  ]));
+  await page.waitForTimeout(300);
+  const picked = await page.evaluate(() => [
+    window.Store.homeFor(201703).name,   // inside the spell
+    window.Store.homeFor(201712).name,   // after it, same year
+    window.Store.homeFor(201905).name,
+  ]);
+  eq(picked[0], 'Oslo', 'March 2017');
+  eq(picked[1], 'Singapore', 'December 2017');
+  eq(picked[2], 'Singapore', '2019');
+});
+await check('a home base routes the distance through it', async () => {
+  const km = () => page.evaluate(() => Math.round(window.Summary.distanceKm()));
+  await loadFixture();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.Store.setSetting('homes', []));
+  await page.waitForTimeout(300);
+  const wandering = await km();
+
+  // Singapore, far from everything in the fixture, so the flights home show up.
+  await page.evaluate(() => window.Store.setSetting('homes',
+    [{name: 'Singapore', lon: 103.85, lat: 1.29, country: 'SGP', region: null, from: null, to: null}]));
+  await page.waitForTimeout(300);
+  const fromHome = await km();
+  if (fromHome <= wandering) {
+    throw new Error(`going home should add distance: ${wandering} -> ${fromHome}`);
+  }
+
+  // A second base with a year range takes over for those years only.
+  await page.evaluate(() => window.Store.setSetting('homes', [
+    {name: 'Singapore', lon: 103.85, lat: 1.29, country: 'SGP', region: null, from: null, to: null},
+    {name: 'Oslo', lon: 10.75, lat: 59.91, country: 'NOR', region: null, from: 2017, to: 2017},
+  ]));
+  await page.waitForTimeout(300);
+  const picked = await page.evaluate(() => [
+    window.Store.homeFor(2017).name, window.Store.homeFor(2019).name,
+  ]);
+  eq(picked[0], 'Oslo', 'the 2017 base');
+  eq(picked[1], 'Singapore', 'the 2019 base');
+  if (await km() === fromHome) throw new Error('the second base changed nothing');
+
+  await page.evaluate(() => window.Store.setSetting('homes', []));
+  await page.waitForTimeout(300);
+  eq(await km(), wandering, 'clearing the homes puts it back');
+  await loadFixture();
+  await page.waitForTimeout(300);
+});
 await check('the distance travelled is computed and stable', async () => {
   const read = async () => {
     const t = await page.textContent('.far-figure b');
@@ -293,8 +385,9 @@ await check('the distance travelled is computed and stable', async () => {
   eq(await read(), km, 'distance on a re-render');
   const lines = await page.$$eval('.far-list li', (n) => n.map((x) => x.textContent));
   if (!lines.some((l) => /equator/.test(l))) throw new Error('no yardstick: ' + lines);
-  if (!/floor, not a total/.test(await page.textContent('.far-note'))) {
-    throw new Error('the estimate does not say what it is');
+  const note = await page.textContent('.far-note');
+  if (!/floor, not a total|out from home|trips, each one/i.test(note)) {
+    throw new Error('the estimate does not say which model it used: ' + note);
   }
 });
 await check('neighbours are found, and never somewhere already visited', async () => {
@@ -329,6 +422,12 @@ await check('the distance and badges come before the charts', async () => {
   if (far > badges) throw new Error('distance should lead');
 });
 await check('badges are earned by the data, and say what they counted', async () => {
+  await loadFixture();
+  await page.waitForTimeout(300);
+  await page.click('#sum-toggle');
+  await page.waitForTimeout(300);
+  await page.click('#sum-toggle');
+  await page.waitForTimeout(700);
   const badges = await page.$$eval('.badge', (n) => n.map((x) => ({
     got: x.classList.contains('got'),
     title: x.querySelector('b').textContent,
@@ -439,7 +538,7 @@ await check('the service worker registers and serves the page offline', async ()
   await ctx.close();
   if (!/Been There/.test(title)) throw new Error('offline page title: ' + title);
   if (out[1] < 200) throw new Error('offline reload did not get the map: ' + out[1]);
-  if (out[0] !== 1) throw new Error('offline reload lost the data: ' + out[0]);
+  if (out[0] < 1) throw new Error('offline reload lost the data: ' + out[0]);
 });
 
 console.log('\nthe picture');
@@ -486,6 +585,69 @@ await check('the menu hands you a png', async () => {
   if (!/^been-there-\d{4}-\d{2}-\d{2}\.png$/.test(file.suggestedFilename())) {
     throw new Error('odd filename: ' + file.suggestedFilename());
   }
+});
+
+console.log('\ntrips and home bases');
+await check('the editor groups pins into trips and lets them be merged', async () => {
+  await page.evaluate(() => window.Store.fromJSON({data: {
+    countries: {JPN: {status: 'visited', first: 2019}, THA: {status: 'visited', first: 2019}},
+    cities: {
+      a: {status: 'visited', name: 'Tokyo', lon: 139.69, lat: 35.69, country: 'JPN', first: 2019, trip: 't1'},
+      b: {status: 'visited', name: 'Osaka', lon: 135.5, lat: 34.69, country: 'JPN', first: 2019, trip: 't2'},
+      c: {status: 'visited', name: 'Bangkok', lon: 100.5, lat: 13.75, country: 'THA', first: 2019, trip: 't3'},
+    },
+    settings: {
+      homes: [{name: 'Singapore', lon: 103.85, lat: 1.29, country: 'SGP', region: null, from: null, to: null}],
+      trips: {t1: {ym: 201905}, t2: {ym: 201906}, t3: {ym: 201911}},
+    },
+  }}, 'replace'));
+  await page.waitForTimeout(400);
+  const km = () => page.evaluate(() => Math.round(window.Summary.distanceKm()));
+  const apart = await km();
+
+  await page.click('#menu-btn');
+  await page.waitForTimeout(250);
+  await page.click('[data-act=home]');
+  await page.waitForTimeout(3500);
+  eq(await page.textContent('#sheet-title'), 'Trips', 'sheet title');
+  eq((await page.$$('.trip')).length, 3, 'trip cards');
+
+  // Merging the two Japanese legs is one flight out instead of two.
+  await page.click('.trip button:has-text("Merge into the one above") >> nth=0');
+  await page.waitForTimeout(700);
+  const merged = await km();
+  if (merged >= apart) throw new Error(`merging should shorten it: ${apart} -> ${merged}`);
+  eq((await page.$$('.trip')).length, 2, 'trip cards after merging');
+  eq(await page.evaluate(() => Object.keys(window.Store.trips()).length), 2, 'emptied trips pruned');
+
+  // And a trip's month can be corrected in place.
+  await page.fill('.trip-when >> nth=0', '2018-03');
+  await page.dispatchEvent('.trip-when >> nth=0', 'change');
+  await page.waitForTimeout(600);
+  const months = await page.$$eval('.trip-when', (n) => n.map((x) => x.value));
+  if (months.indexOf('2018-03') === -1) throw new Error('the month did not stick: ' + months);
+
+  await page.click('.sheet-actions .btn >> nth=0');
+  await page.waitForTimeout(400);
+});
+await check('ungrouping a trip puts its places back as loose', async () => {
+  await page.click('#menu-btn');
+  await page.waitForTimeout(250);
+  await page.click('[data-act=home]');
+  await page.waitForTimeout(1200);
+  await page.click('.trip button:has-text("Ungroup") >> nth=0');
+  await page.waitForTimeout(700);
+  if (!(await page.$('.trip.loose'))) throw new Error('nothing became loose');
+  const stray = await page.evaluate(() => {
+    const cities = window.Store.cities();
+    const trips = window.Store.trips();
+    return Object.keys(cities).filter((k) => cities[k].trip && !trips[cities[k].trip]).length;
+  });
+  eq(stray, 0, 'cities pointing at a trip that is gone');
+  await page.click('.sheet-actions .btn >> nth=0');
+  await page.waitForTimeout(400);
+  await loadFixture();
+  await page.waitForTimeout(300);
 });
 
 console.log('\nthe replay');
@@ -755,9 +917,12 @@ await check('a browser that blocks storage still works, and says so', async () =
   if (broke.length) throw new Error(broke.join('; '));
   if (await p2.evaluate(() => window.Atlas.countries().length) < 200) throw new Error('map never loaded');
   // In memory only, but it must still take an edit rather than fall over.
-  await p2.evaluate(() => window.Store.set('country', 'JPN', 'visited'));
+  const was = await p2.evaluate(() => window.Store.stats().countries);
+  await p2.evaluate(() => window.Store.set('country', 'BRA', 'visited'));
   await p2.waitForTimeout(400);
-  if (await p2.evaluate(() => window.Store.stats().countries) !== 1) throw new Error('edit did not stick');
+  if (await p2.evaluate(() => window.Store.stats().countries) !== was + 1) {
+    throw new Error('edit did not stick');
+  }
   if (await p2.evaluate(() => window.Store.storageWorks())) throw new Error('claimed storage works');
   const note = await p2.textContent('#storage-note');
   if (!/blocking storage/.test(note)) throw new Error('no warning shown: ' + note);

@@ -8,3 +8,4 @@ tools/package-lock.json
 # A personal travel history stays out of this repository.
 data/travels.js
 tools/travels.txt
+tools/places.txt

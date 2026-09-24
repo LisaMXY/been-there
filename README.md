@@ -89,6 +89,45 @@ geography can vouch for. Anything sitting within 45 km of a place four times its
 size is somebody else's suburb and is left out, because "Eimsbüttel, Germany" is
 really a suggestion of Hamburg.
 
+## Trips, and where you set off from
+
+A trip is the unit that matters for distance, not a year. You flew out, went
+round, and came home. Grouping by year instead draws a line from Japan to
+Thailand as though you walked, and on one real history that undercounted by a
+factor of two and a half: 82,509 km by year, 215,635 km by trip.
+
+Two things make the difference:
+
+- **Where you set off from** — each trip starts and ends there. A period lets a
+  spell living somewhere else take over, **down to the month**, because a stint
+  abroad starts and ends mid-year and the trips either side set off from
+  somewhere different.
+- **Trip boundaries** — which places belong to one journey.
+
+Both are editable in **Data → Trips and home bases**. Trips are listed in date
+order with their places and the base that applies; merge a trip into the one
+above it to build a long one up leg by leg, split one apart, ungroup it, or
+correct its month. Emptied trips are cleaned up rather than left lying about.
+
+In `tools/travels.txt` the same things are expressed by **a blank line ending a
+trip**, with `@home` and `@base` at the top of the file:
+
+```
+@home Singapore
+@base Linköping 2017-01 2017-07
+
+2017-05 | Netherlands | Amsterdam
+2017-05 | Iceland     |
+2017-06 | Scotland    | Edinburgh
+                                      <- blank line: that journey ends here
+2017-12 | Vietnam     | Ho Chi Minh City
+```
+
+With trips the only guess left is the order within a trip, which takes the
+nearest place next. With years but a home, it is one loop per year. With
+neither, it is a single continuous path — a floor, not a total. The note under
+the figure always says which of the three you are looking at.
+
 ## Badges and a picture
 
 Sixteen badges, each earned by something you can check rather than an explorer
@@ -149,7 +188,8 @@ count. The table is also the colour-free way to read everything the charts say.
 - **Drop a pin** for anywhere the city list does not have — a village, a
   campsite, a trailhead. Click the map and name it.
 - **A text file**, for bulk-loading a history you already have written down.
-  Copy `tools/travels.example.txt` to `tools/travels.txt` — one trip per line:
+  Copy `tools/travels.example.txt` to `tools/travels.txt`. A blank line ends a
+  trip:
 
   ```
   2011-08 | France        | Paris, Lyon
@@ -165,7 +205,9 @@ count. The table is also the colour-free way to read everything the charts say.
   is reported by name rather than quietly dropped, so you can add coordinates
   for it in `EXTRA_PLACES` at the top of `tools/build-travels.mjs`.
 
-  Both files are gitignored. Your trips stay on your machine.
+  Both files are gitignored, as is `tools/places.txt`, where you put coordinates
+  for anywhere the city list does not carry and spellings it uses instead. Your
+  trips stay on your machine.
 
 ## Your data
 
@@ -225,7 +267,7 @@ npx playwright install chromium
 npm test
 ```
 
-Forty-seven checks against the real page in a real browser: a fresh browser
+Fifty-two checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions

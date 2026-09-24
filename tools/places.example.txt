@@ -1,0 +1,14 @@
+# Places the bundled city list does not carry, and spellings it uses instead.
+# Copy to places.txt, which is gitignored, so your own itinerary stays local.
+#
+#   Name  |  CC  |  longitude  |  latitude      a place to place by hand
+#   what you type -> what the list calls it     an alias
+#
+# Anything travels.txt names that cannot be resolved is reported by name when
+# you run `npm run travels`, so add it here and run it again.
+
+Hallstatt      | AT | 13.6493 | 47.5622
+Aït Benhaddou  | MA | -7.1319 | 31.0472
+
+st petersburg -> saint petersburg
+jeju -> jeju city

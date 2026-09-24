@@ -35,18 +35,14 @@ const COUNTRY_ALIASES = {
 // Places the bundled city list does not carry - a village below the size cut,
 // or a region or a landmark rather than a town. Add your own here, keyed by the
 // name exactly as you write it in travels.txt, and the build will place them.
-const EXTRA_PLACES = {
-  // 'hallstatt': {cc: 'AT', lon: 13.6493, lat: 47.5622},
-  // 'ait benhaddou': {cc: 'MA', lon: -7.1319, lat: 31.0472},
-};
+const EXTRA_PLACES = {};
 
-// Spellings the city list uses instead of the one you would type. Add your own.
+// Spellings the city list uses instead of the one you would type. Add your own
+// in places.txt rather than here, so they stay out of the repository.
 const CITY_ALIASES = {
   'st petersburg': 'saint petersburg',
   'gothenburg': 'goteborg',
   'cologne': 'koln',
-  'florence': 'firenze',
-  'munich': 'munchen',
 };
 
 const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -122,25 +118,91 @@ for (const c of cityRows) {
   if (!seen || c.pop > seen.pop) cityIndex.set(key, c);
 }
 
+/* Places the bundled city list does not carry, and spellings it uses instead,
+   kept in a gitignored file beside travels.txt so a personal itinerary never
+   reaches the repository through the back door. See places.example.txt. */
+async function loadPlaces() {
+  let raw = '';
+  try {
+    raw = await readFile(path.join(here, 'places.txt'), 'utf8');
+  } catch { return; }
+  let extras = 0;
+  let aliases = 0;
+  for (const line of raw.split('\n')) {
+    const text = line.trim();
+    if (!text || text.startsWith('#')) continue;
+    if (text.includes('->')) {
+      const [from, to] = text.split('->').map((x) => x.trim());
+      if (from && to) { CITY_ALIASES[fold(from)] = fold(to); aliases++; }
+      continue;
+    }
+    const bits = text.split('|').map((x) => x.trim());
+    if (bits.length < 4) continue;
+    const lon = Number(bits[2]);
+    const lat = Number(bits[3]);
+    if (!bits[0] || !bits[1] || !isFinite(lon) || !isFinite(lat)) continue;
+    EXTRA_PLACES[fold(bits[0])] = {cc: bits[1].toUpperCase(), lon, lat};
+    extras++;
+  }
+  console.log(`places     ${extras} hand-placed, ${aliases} aliases from places.txt`);
+}
+
+await loadPlaces();
+
 const text = await readFile(path.join(here, 'travels.txt'), 'utf8');
 const problems = [];
 const loose = [];
+/* A blank line ends a trip, and @home / @base say where you set off from.
+   Trips are the unit that matters for distance: one loop out and back, rather
+   than a line drawn between everywhere you happened to reach in a year. */
+function parseDirective(line, homes, problems, lineNo) {
+  var m = line.match(/^@(home|base)\s+(.+)$/i);
+  if (!m) return false;
+  var rest = m[2].trim().split(/\s+/);
+  var span = [];
+  while (rest.length > 1 && /^\d{4}(-\d{2})?$/.test(rest[rest.length - 1])) span.unshift(rest.pop());
+  var name = rest.join(' ');
+  if (!name) { problems.push(`line ${lineNo}: @${m[1]} needs a place`); return true; }
+  homes.push({raw: name, from: span[0] || null, to: span[1] || null, kind: m[1].toLowerCase()});
+  return true;
+}
+
+const ym = (text) => {
+  if (!text) return null;
+  const bits = String(text).split('-');
+  const y = Number(bits[0]);
+  const mo = bits[1] ? Number(bits[1]) : null;
+  if (!y) return null;
+  return y * 100 + (mo || 1);
+};
+
 const RANK = {wishlist: 1, stopover: 2, visited: 3, lived: 4};
 const strongest = (a, b) => ((RANK[b] || 0) > (RANK[a] || 0) ? b : a);
 
 const countryTrips = new Map();   // id -> {years:Set, status}
-const cityTrips = new Map();      // key -> {city, years:Set, note, status}
+const cityTrips = new Map();      // key -> {city, years:Set, note, status, trip}
+const homeLines = [];
+const trips = {};                 // tripId -> {ym}
 
 let lineNo = 0;
+let tripNo = 0;
+let inTrip = false;
 for (const raw of text.split('\n')) {
   lineNo++;
   const line = raw.trim();
-  if (!line || line.startsWith('#')) continue;
+  if (!line) { inTrip = false; continue; }
+  if (line.startsWith('#')) continue;
+  if (parseDirective(line, homeLines, problems, lineNo)) continue;
+  if (!inTrip) { tripNo++; inTrip = true; }
+  const tripId = 't' + tripNo;
   const parts = line.split('|').map((s) => s.trim());
   if (parts.length < 2) { problems.push(`line ${lineNo}: cannot read "${line}"`); continue; }
 
   const year = Number(parts[0].slice(0, 4));
   if (!year) { problems.push(`line ${lineNo}: no year in "${parts[0]}"`); continue; }
+  const stamp = ym(parts[0]);
+  // A trip takes the date of its first line.
+  if (!trips[tripId]) trips[tripId] = {ym: stamp};
 
   const countryName = fold(parts[1]);
   const id = COUNTRY_ALIASES[countryName] || byName[countryName];
@@ -192,7 +254,9 @@ for (const raw of text.split('\n')) {
     if (!hit) { problems.push(`line ${lineNo}: no city "${name}" in ${cc.name}`); continue; }
 
     const key = String(hit.id);
-    if (!cityTrips.has(key)) cityTrips.set(key, {city: hit, years: new Set(), note: '', status: 'visited'});
+    if (!cityTrips.has(key)) {
+      cityTrips.set(key, {city: hit, years: new Set(), note: '', status: 'visited', trip: tripId});
+    }
     const slot = cityTrips.get(key);
     slot.years.add(year);
     slot.status = strongest(slot.status, status);
@@ -205,7 +269,28 @@ if (problems.length) {
   process.exit(1);
 }
 
-const out = {version: 1, settings: {countStopovers: false, theme: null}, countries: {}, regions: {}, cities: {}};
+// Resolve each declared home against the city list, so a base is a real point.
+const homes = [];
+for (const h of homeLines) {
+  const folded = CITY_ALIASES[fold(h.raw)] || fold(h.raw);
+  let hit = null;
+  for (const c of cityRows) {
+    if (fold(c.name) !== folded) continue;
+    if (!hit || c.pop > hit.pop) hit = c;
+  }
+  if (!hit) { problems.push(`@${h.kind}: no city called "${h.raw}"`); continue; }
+  homes.push({
+    name: hit.name, lon: hit.lon, lat: hit.lat,
+    country: hit.country, region: hit.region,
+    from: ym(h.from), to: h.to ? ym(h.to) : null
+  });
+}
+
+const out = {
+  version: 1,
+  settings: {countStopovers: false, theme: null, homes: homes, trips: trips},
+  countries: {}, regions: {}, cities: {}
+};
 
 for (const [id, t] of countryTrips) {
   const years = [...t.years].sort();
@@ -220,6 +305,7 @@ for (const [key, t] of cityTrips) {
     region: c.region || regionAt(c.lon, c.lat, c.country),
     first: years[0], last: years[years.length - 1],
   };
+  out.cities[key].trip = t.trip;
   if (t.note) out.cities[key].note = t.note;
   if (c.custom) out.cities[key].custom = true;
 }
@@ -233,6 +319,8 @@ const noRegion = Object.values(out.cities).filter((c) => !c.region);
 if (loose.length) console.log(`matched    ${loose.join(' · ')}`);
 const notPlain = Object.entries(out.countries).filter(([, v]) => v.status !== 'visited');
 if (notPlain.length) console.log(`status     ${notPlain.map(([k, v]) => k + ' ' + v.status).join(', ')}`);
+console.log(`trips      ${Object.keys(trips).length}`);
+console.log(`homes      ${homes.map((h) => h.name + (h.from ? ' ' + h.from + '-' + (h.to || '') : '')).join(' · ') || 'none'}`);
 console.log(`countries  ${Object.keys(out.countries).length}`);
 console.log(`cities     ${Object.keys(out.cities).length}`);
 console.log(`regions    ${touched.size} lit up by those cities`);
