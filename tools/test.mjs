@@ -643,11 +643,43 @@ await check('the editor groups pins into trips and lets them be merged', async (
   await page.click('.sheet-actions .btn >> nth=0');
   await page.waitForTimeout(400);
 });
+await check('loose pins can be grouped, together or one by one', async () => {
+  await page.evaluate(() => window.Store.fromJSON({data: {
+    countries: {JPN: {status: 'visited', first: 2019}},
+    cities: {
+      a: {status: 'visited', name: 'Tokyo', lon: 139.69, lat: 35.69, country: 'JPN', first: 2019},
+      b: {status: 'visited', name: 'Osaka', lon: 135.5, lat: 34.69, country: 'JPN', first: 2019},
+    },
+  }}, 'replace'));
+  await page.waitForTimeout(400);
+  await page.click('#menu-btn');
+  await page.waitForTimeout(250);
+  await page.click('[data-act=home]');
+  await page.waitForTimeout(3500);
+  if (!(await page.$('.trip.loose'))) throw new Error('ungrouped pins are not shown as loose');
+
+  await page.click('.trip button:has-text("Each its own trip")');
+  await page.waitForTimeout(700);
+  eq(await page.evaluate(() => Object.keys(window.Store.trips()).length), 2, 'one trip per place');
+  if (await page.$('.trip.loose')) throw new Error('something is still loose');
+
+  await page.click('.trip button:has-text("Ungroup") >> nth=0');
+  await page.waitForTimeout(600);
+  await page.click('.trip button:has-text("Make this a trip")');
+  await page.waitForTimeout(700);
+  if (await page.$('.trip.loose')) throw new Error('grouping the loose card did nothing');
+  await page.click('.sheet-actions .btn >> nth=0');
+  await page.waitForTimeout(400);
+});
 await check('ungrouping a trip puts its places back as loose', async () => {
   await page.click('#menu-btn');
   await page.waitForTimeout(250);
   await page.click('[data-act=home]');
   await page.waitForTimeout(1200);
+  if (!(await page.$('.trip button:has-text("Ungroup")'))) {
+    await page.click('.trip button:has-text("Make this a trip")');
+    await page.waitForTimeout(600);
+  }
   await page.click('.trip button:has-text("Ungroup") >> nth=0');
   await page.waitForTimeout(700);
   if (!(await page.$('.trip.loose'))) throw new Error('nothing became loose');

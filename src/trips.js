@@ -178,13 +178,27 @@
 
     var actions = h('div', {class: 'inline-actions'});
     if (!row.id) {
-      actions.appendChild(h('button', {class: 'btn', type: 'button', text: 'Make this a trip',
+      actions.appendChild(h('button', {class: 'btn', type: 'button',
+        text: row.places.length > 1 ? 'Make these one trip' : 'Make this a trip',
         onclick: function () {
           var id = nextId(Store.trips());
           saveTrip(id, {ym: row.ym});
           assign(row.places.map(function (p) { return p.id; }), id);
           render(ctx);
         }}));
+      if (row.places.length > 1) {
+        // A year's loose pins are rarely one journey; more often they are
+        // several, and starting from one-each is less work than splitting.
+        actions.appendChild(h('button', {class: 'btn', type: 'button', text: 'Each its own trip',
+          onclick: function () {
+            row.places.forEach(function (p) {
+              var id = nextId(Store.trips());
+              saveTrip(id, {ym: row.ym});
+              assign([p.id], id);
+            });
+            render(ctx);
+          }}));
+      }
     } else {
       if (above && above.id) {
         actions.appendChild(h('button', {class: 'btn', type: 'button', text: '↑ Merge into the one above',

@@ -130,7 +130,7 @@ the figure always says which of the three you are looking at.
 
 ## Badges and a picture
 
-Sixteen badges, each earned by something you can check rather than an explorer
+Twenty-one badges, each earned by something you can check rather than an explorer
 level: *20 new countries in 2017*, *11 of 47 in Japan*, *Sydney and Donostia,
 17,473 km apart*. Unearned ones show the shortfall in their own units, so they
 read as a target rather than a scolding.
@@ -267,7 +267,7 @@ npx playwright install chromium
 npm test
 ```
 
-Fifty-three checks against the real page in a real browser: a fresh browser
+Fifty-four checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions

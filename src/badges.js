@@ -139,9 +139,21 @@
       {id: 'arctic', title: 'Above the sixtieth', have: s.north >= 60 ? 1 : 0, need: 1,
        note: s.north !== null ? 'furthest north ' + s.north.toFixed(1) + '°' : ''},
 
+      /* A ladder, because one lap stops meaning much once you are past five.
+         The equator is 40,075 km and the Moon is 384,400 away; everything here
+         is one of those two, multiplied. */
       {id: 'lap', title: 'Once round the world', have: Math.round(km), need: 40075,
-       note: Math.round(km).toLocaleString() + ' km of hops',
-       unit: 'km'},
+       unit: 'km', note: Math.round(km).toLocaleString() + ' km of travelling'},
+      {id: 'lap3', title: 'Three times round', have: Math.round(km), need: 120225,
+       unit: 'km', note: (km / 40075).toFixed(1) + ' laps of the equator'},
+      {id: 'lap5', title: 'Five times round', have: Math.round(km), need: 200375,
+       unit: 'km', note: (km / 40075).toFixed(1) + ' laps of the equator'},
+      {id: 'lap10', title: 'Ten times round', have: Math.round(km), need: 400750,
+       unit: 'km', note: (km / 40075).toFixed(1) + ' laps of the equator'},
+      {id: 'moon', title: 'As far as the Moon', have: Math.round(km), need: 384400,
+       unit: 'km', note: Math.round(km).toLocaleString() + ' of the 384,400 km up there'},
+      {id: 'moonback', title: 'The Moon and back', have: Math.round(km), need: 768800,
+       unit: 'km', note: (km / 384400).toFixed(1) + ' trips to the Moon'},
 
       {id: 'farflung', title: 'Opposite ends of the Earth',
        have: Math.round(s.apart), need: 15000, unit: 'km',
