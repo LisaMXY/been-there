@@ -253,6 +253,14 @@ for (const raw of text.split('\n')) {
     }
     if (!hit) { problems.push(`line ${lineNo}: no city "${name}" in ${cc.name}`); continue; }
 
+    /* The country on the line wins over the one the city list inferred. That
+       matters for enclaves: Vatican City sits inside Italy's outline, so
+       point-in-polygon files it under Italy unless you say otherwise. The
+       region goes with it, since it belonged to the other country. */
+    if (hit.country !== id) {
+      hit = Object.assign({}, hit, {country: id, region: null});
+    }
+
     const key = String(hit.id);
     if (!cityTrips.has(key)) {
       cityTrips.set(key, {city: hit, years: new Set(), note: '', status: 'visited', trip: tripId});
