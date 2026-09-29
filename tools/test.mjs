@@ -452,6 +452,39 @@ await check('badges are earned by the data, and say what they counted', async ()
     }
   }
 });
+await check('every badge is scored the same way, and the ids are unique', async () => {
+  // The bug this catches: a badge list built by concatenation, where only one
+  // half got its earned flag set, so earned badges printed negative shortfalls.
+  const all = await page.evaluate(() => window.Badges.evaluate(222938));
+  if (all.length < 40) throw new Error('only ' + all.length + ' badges');
+  const seen = new Set();
+  for (const b of all) {
+    if (seen.has(b.id)) throw new Error('two badges share the id ' + b.id);
+    seen.add(b.id);
+    if (typeof b.earned !== 'boolean') throw new Error(b.id + ' was never scored');
+    if (b.earned !== b.have >= b.need) throw new Error(b.id + ' is scored wrongly');
+    if (!b.title) throw new Error(b.id + ' has no title');
+    if (b.earned && !String(b.note).trim()) throw new Error(b.id + ' is earned but says nothing');
+  }
+});
+await check('the badge trait table still matches the city data', async () => {
+  // badges.js keeps its own copy so it does not have to load the 4 MB city
+  // file. This fails the moment the build changes the bits underneath it.
+  const src = await readFile(new URL('../src/badges.js', import.meta.url), 'utf8');
+  const mine = src.match(/var TRAIT = \{([\s\S]*?)\};/);
+  if (!mine) throw new Error('badges.js no longer declares a TRAIT table');
+  const head = (await readFile(new URL('../data/cities.js', import.meta.url), 'utf8')).slice(0, 4000);
+  const theirs = head.match(/"traits":(\{.*?\})/);
+  if (!theirs) throw new Error('data/cities.js no longer carries a traits table');
+  const parsed = JSON.parse(theirs[1]);
+  for (const [name, bit] of Object.entries(parsed)) {
+    const found = mine[1].match(new RegExp(name + ':\\s*(\\d+)'));
+    if (!found || Number(found[1]) !== bit) {
+      throw new Error('trait ' + name + ' is ' + bit + ' in the data, ' +
+        (found ? found[1] : 'missing') + ' in badges.js');
+    }
+  }
+});
 await check('a table row jumps to that country', async () => {
   await page.click('.ledger tbody tr >> nth=0');
   await page.waitForTimeout(800);

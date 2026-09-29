@@ -130,10 +130,19 @@ the figure always says which of the three you are looking at.
 
 ## Badges and a picture
 
-Twenty-one badges, each earned by something you can check rather than an explorer
+Fifty badges, each earned by something you can check rather than an explorer
 level: *20 new countries in 2017*, *11 of 47 in Japan*, *Sydney and Donostia,
 17,473 km apart*. Unearned ones show the shortfall in their own units, so they
-read as a target rather than a scolding.
+read as a target rather than a scolding; the summary shows everything you have
+earned and the ten you are nearest to.
+
+About a third of them are deliberately strange, because the data can answer
+stranger questions than anyone thinks to ask: how many of your countries are
+joined to each other by land, so you could cross between them without a boat;
+which two of your places sit on the same line of latitude on opposite sides of
+the world; which countries you have pins in but never the capital; the longest
+run of years you did not go anywhere; whether any name on your map reads the
+same backwards. They count real things, so they can be argued with.
 
 **Data → Save a picture** draws a 1200×1200 PNG of your map with the headline
 numbers and a key, in whichever theme you are using, and puts it in your
@@ -267,7 +276,7 @@ npx playwright install chromium
 npm test
 ```
 
-Fifty-four checks against the real page in a real browser: a fresh browser
+Fifty-six checks against the real page in a real browser: a fresh browser
 starts empty and usable, a history loads and adds up, nothing is fetched from
 off the page, a corrupt backup is refused rather than
 half-applied, a country keeps its colour at world zoom and breaks into regions

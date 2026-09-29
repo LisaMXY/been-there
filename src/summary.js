@@ -504,14 +504,15 @@
         .sort(function (a, b) { return (b.have / b.need) - (a.have / a.need); });
 
       var grid = h('div', {class: 'badges'});
-      got.concat(next.slice(0, 6)).forEach(function (b) {
+      got.concat(next.slice(0, 10)).forEach(function (b) {
         grid.appendChild(h('div', {class: 'badge' + (b.earned ? ' got' : '')}, [
           h('b', {text: b.title}),
           h('span', {text: b.earned ? b.note : shortfall(b)})
         ]));
       });
       root.appendChild(section('Badges',
-        got.length + ' of ' + badges.length + ' earned. Each one counts something you can check.',
+        got.length + ' of ' + badges.length + ' earned, with the ten nearest misses. ' +
+        'Each one counts something you can check.',
         grid));
     }
 

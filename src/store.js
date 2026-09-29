@@ -116,6 +116,11 @@
         kept.lat = lat;
         kept.cc = str(raw.cc, 2) || null;
         kept.trip = str(raw.trip, 40) || undefined;
+        // Size and character, so a badge can ask how big or how mountainous.
+        var pop = Number(raw.pop);
+        if (isFinite(pop) && pop >= 0) kept.pop = Math.round(pop);
+        var traits = Number(raw.traits);
+        if (isFinite(traits) && traits >= 0) kept.traits = Math.round(traits);
         kept.country = str(raw.country, 10) || null;
         kept.region = str(raw.region, 20) || null;
         if (raw.custom) kept.custom = true;
@@ -370,6 +375,8 @@
       status: status || 'visited',
       name: city.name,
       cc: city.cc || null,
+      pop: city.pop || 0,
+      traits: city.traits || 0,
       lon: city.lon,
       lat: city.lat,
       country: city.country || null,

@@ -211,9 +211,11 @@ async function buildCountries(admin1Features) {
     await toTopology('countries', {type: 'FeatureCollection', features}, {retain: 0.35}));
   await writeDataFile('countries', 'TM_COUNTRIES', topo);
 
-  const borders = buildBorders(topo, 'countries');
-  await writeDataFile('borders', 'TM_BORDERS', borders);
-  console.log(`borders    ${Object.keys(borders).length} countries have a land neighbour`);
+  const edges = buildBorders(topo, 'countries');
+  await writeDataFile('borders', 'TM_BORDERS', edges.borders);
+  await writeDataFile('landlocked', 'TM_LANDLOCKED', edges.landlocked);
+  console.log(`borders    ${Object.keys(edges.borders).length} with a land neighbour · ` +
+    `${edges.landlocked.length} landlocked`);
   console.log(`countries  ${features.length} features`);
   return features;
 }
@@ -436,9 +438,12 @@ function buildBorders(topo, name) {
   for (const g of topo.objects[name].geometries) walk(g.arcs || [], g.properties.id);
 
   const nb = {};
+  const touchesSea = new Set();
   for (const set of owners.values()) {
-    if (set.size < 2) continue;                 // an unshared arc is coastline
     const list = [...set];
+    // An arc nobody else owns is coastline; one shared with another country is
+    // a border. A country with no unshared arc at all is landlocked.
+    if (list.length < 2) { touchesSea.add(list[0]); continue; }
     for (const a of list) {
       for (const b of list) {
         if (a === b) continue;
@@ -448,7 +453,7 @@ function buildBorders(topo, name) {
   }
   const out = {};
   Object.keys(nb).sort().forEach((id) => { out[id] = [...nb[id]].sort(); });
-  return out;
+  return {borders: out, landlocked: Object.keys(nb).filter((id) => !touchesSea.has(id)).sort()};
 }
 
 const regions = await reduceAdmin1();
@@ -456,7 +461,7 @@ const countries = await buildCountries(regions);
 await writeAdmin1(regions);
 await buildCities(regions, countries);
 
-for (const f of ['countries.js', 'borders.js', 'admin1.js', 'cities.js']) {
+for (const f of ['countries.js', 'borders.js', 'landlocked.js', 'admin1.js', 'cities.js']) {
   const {size} = await stat(path.join(out, f));
   console.log(`  ${f.padEnd(22)} ${(size / 1024).toFixed(0)} KB`);
 }

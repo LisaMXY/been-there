@@ -103,10 +103,13 @@
     loadScript('data/cities.js', function (err) {
       if (err) { done(err); return; }
       var raw = window.TM_CITIES;
+      var at = {};
+      raw.columns.forEach(function (name, i) { at[name] = i; });
       cities = raw.rows.map(function (r) {
         return {
-          id: String(r[0]), name: r[1], cc: r[2], pop: r[3],
-          lon: r[4], lat: r[5], country: r[6], region: r[7], capital: !!r[8]
+          id: String(r[at.id]), name: r[at.name], cc: r[at.cc], pop: r[at.pop],
+          lon: r[at.lon], lat: r[at.lat], country: r[at.country], region: r[at.region],
+          capital: !!r[at.capital], traits: r[at.traits] || 0
         };
       });
       cities.forEach(function (c) {

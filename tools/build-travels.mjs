@@ -110,6 +110,7 @@ const col = Object.fromEntries(w.TM_CITIES.columns.map((c, i) => [c, i]));
 const cityRows = w.TM_CITIES.rows.map((r) => ({
   id: String(r[col.id]), name: r[col.name], cc: r[col.cc], pop: r[col.pop],
   lon: r[col.lon], lat: r[col.lat], country: r[col.country], region: r[col.region],
+  traits: r[col.traits],
 }));
 const cityIndex = new Map();
 for (const c of cityRows) {
@@ -308,7 +309,8 @@ for (const [key, t] of cityTrips) {
   const years = [...t.years].sort();
   const c = t.city;
   out.cities[key] = {
-    status: t.status, name: c.name, cc: c.cc, lon: c.lon, lat: c.lat,
+    status: t.status, name: c.name, cc: c.cc, pop: c.pop || 0, traits: c.traits || 0,
+    lon: c.lon, lat: c.lat,
     country: c.country,
     region: c.region || regionAt(c.lon, c.lat, c.country),
     first: years[0], last: years[years.length - 1],

@@ -1,0 +1,1 @@
+window.TM_LANDLOCKED=["AFG","AND","ARM","AUT","BDI","BFA","BLR","BOL","BTN","BWA","CAF","CHE","CZE","ETH","HUN","KAS","KGZ","KOS","LAO","LIE","LSO","LUX","MDA","MKD","MLI","MNG","MWI","NER","NPL","PRY","RWA","SDS","SMR","SRB","SVK","SWZ","TCD","TJK","UGA","UZB","VAT","ZMB","ZWE"];
